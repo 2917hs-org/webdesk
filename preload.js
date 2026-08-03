@@ -56,8 +56,6 @@ contextBridge.exposeInMainWorld('browserAPI', {
             callback(state);
         });
     },
-        });
-    },
 
     getSetupConfig() {
         return ipcRenderer.invoke('get-setup-config');
