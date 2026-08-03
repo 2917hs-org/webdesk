@@ -5,6 +5,24 @@ contextBridge.exposeInMainWorld('browserAPI', {
         ipcRenderer.send('navigate', url);
     },
 
+    submitOmnibox(text) {
+        ipcRenderer.send('omnibox-submit', text);
+    },
+
+    showSearchMenu() {
+        ipcRenderer.send('show-search-menu');
+    },
+
+    getSearchEngine() {
+        return ipcRenderer.invoke('get-search-engine');
+    },
+
+    onSearchEngineChange(callback) {
+        ipcRenderer.on('search-engine-changed', (_, engine) => {
+            callback(engine);
+        });
+    },
+
     back() {
         ipcRenderer.send('go-back');
     },
