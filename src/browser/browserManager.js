@@ -6,6 +6,10 @@ const bookmarkStore = require('../bookmarks/bookmarkStore');
 
 const { createSetupWindow } = require('../onboarding/setupWindow');
 
+const adblockStore = require('../privacy/adblockStore');
+
+const adblocker = require('../privacy/adblocker');
+
 const TOOLBAR_HEIGHT = 50;
 
 let browserView = null;
@@ -64,6 +68,21 @@ function createBrowserView(window) {
     registerNavigationEvents();
 
     registerBrowserEvents();
+
+    /*
+        Building the engine needs the network on a first run, so the app
+        carries on unblocked and the loader keeps retrying behind it
+    */
+
+    adblocker.initAdblocker(
+        browserView.webContents.session,
+
+        () => (browserView ? browserView.webContents.getURL() : ''),
+
+        () => {
+            sendToToolbar('shield-state', shieldState());
+        }
+    );
 }
 
 function registerNavigationEvents() {
@@ -83,7 +102,18 @@ function registerNavigationEvents() {
 
         currentFavicon = '';
 
+        /*
+            The exception is per hostname, so blocking is matched to the
+            new page before its subresources start arriving
+        */
+
+        adblocker.applyForUrl(url);
+
+        adblocker.resetCount();
+
         sendToToolbar('url-change', url);
+
+        sendToToolbar('shield-state', shieldState());
 
         sendToToolbar('timer-availability', isTimerDomain(url));
     });
@@ -204,6 +234,31 @@ function registerToolbarEvents(window) {
         setWebsiteUrl(url);
 
         return url;
+    });
+
+    ipcMain.removeHandler('get-shield-state');
+
+    ipcMain.handle('get-shield-state', () => shieldState());
+
+    /*
+        Turns blocking off for the site in view, and back on again, so a
+        page the blocker breaks is one click away from working
+    */
+
+    ipcMain.removeHandler('toggle-shield-for-site');
+
+    ipcMain.handle('toggle-shield-for-site', () => {
+        if (!browserView) return shieldState();
+
+        const url = browserView.webContents.getURL();
+
+        adblockStore.toggleAllowlist(url);
+
+        adblocker.applyForUrl(url);
+
+        browserView.webContents.reload();
+
+        return shieldState();
     });
 
     ipcMain.removeHandler('get-bookmark-state');
@@ -359,6 +414,24 @@ function openBookmark(url) {
     if (browserView && bookmarkStore.isValidUrl(url)) {
         browserView.webContents.loadURL(url);
     }
+}
+
+function shieldState() {
+    const url = browserView ? browserView.webContents.getURL() : '';
+
+    return {
+        ready: adblocker.isReady(),
+
+        status: adblocker.getStatus(),
+
+        blocking: adblocker.isBlockingNow(),
+
+        allowlisted: adblockStore.isAllowlisted(url),
+
+        blocked: adblocker.getBlockedCount(),
+
+        host: adblockStore.hostnameOf(url)
+    };
 }
 
 function bookmarkState() {

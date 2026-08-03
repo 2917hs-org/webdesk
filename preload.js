@@ -29,6 +29,20 @@ contextBridge.exposeInMainWorld('browserAPI', {
         return ipcRenderer.invoke('set-home-to-current');
     },
 
+    getShieldState() {
+        return ipcRenderer.invoke('get-shield-state');
+    },
+
+    toggleShieldForSite() {
+        return ipcRenderer.invoke('toggle-shield-for-site');
+    },
+
+    onShieldState(callback) {
+        ipcRenderer.on('shield-state', (_, state) => {
+            callback(state);
+        });
+    },
+
     getSetupConfig() {
         return ipcRenderer.invoke('get-setup-config');
     },
