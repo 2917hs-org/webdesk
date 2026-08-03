@@ -6,6 +6,7 @@ const bookmarkStore = require('../bookmarks/bookmarkStore');
 
 const { createSetupWindow } = require('../onboarding/setupWindow');
 
+const focusMode = require('../focus/focusMode');
 const adblockStore = require('../privacy/adblockStore');
 
 const adblocker = require('../privacy/adblocker');
@@ -52,7 +53,7 @@ function createBrowserView(window) {
 
     registerToolbarEvents(window);
 
-    registerBookmarkBarShortcut(window);
+    registerShortcuts(window);
 
     const websiteUrl = getWebsiteUrl();
 
@@ -236,6 +237,20 @@ function registerToolbarEvents(window) {
         return url;
     });
 
+    focusMode.attachFocusMode(window, (active) => {
+        sendToToolbar('focus-mode-changed', active);
+
+        resizeBrowserView(window);
+    });
+
+    ipcMain.removeHandler('start-focus-mode');
+
+    ipcMain.handle('start-focus-mode', () => focusMode.enterFocusMode());
+
+    ipcMain.removeHandler('stop-focus-mode');
+
+    ipcMain.handle('stop-focus-mode', () => focusMode.exitFocusMode());
+
     ipcMain.removeHandler('get-shield-state');
 
     ipcMain.handle('get-shield-state', () => shieldState());
@@ -260,7 +275,6 @@ function registerToolbarEvents(window) {
 
         return shieldState();
     });
-
     ipcMain.removeHandler('get-bookmark-state');
 
     ipcMain.handle('get-bookmark-state', () => bookmarkState());
@@ -374,11 +388,11 @@ function registerToolbarEvents(window) {
 }
 
 /*
-    The application menu is removed, so the bar's shortcut is caught off
+    The application menu is removed, so these shortcuts are caught off
     the key events of both the toolbar and the page inside the view
 */
 
-function registerBookmarkBarShortcut(window) {
+function registerShortcuts(window) {
     const handler = (event, input) => {
         if (input.type !== 'keyDown') return;
 
@@ -386,13 +400,27 @@ function registerBookmarkBarShortcut(window) {
 
         if (!modifier || !input.shift) return;
 
-        if (String(input.key).toLowerCase() !== 'b') return;
+        const key = String(input.key).toLowerCase();
 
-        event.preventDefault();
+        if (key === 'b') {
+            event.preventDefault();
 
-        bookmarkStore.setBarVisible(!bookmarkStore.isBarVisible());
+            bookmarkStore.setBarVisible(!bookmarkStore.isBarVisible());
 
-        sendToToolbar('bookmark-state', bookmarkState());
+            sendToToolbar('bookmark-state', bookmarkState());
+        }
+
+        /*
+            Way out of focus mode that does not depend on being able to
+            reach the toolbar. Escape is left alone, since the editors
+            on the timed sites use it.
+        */
+
+        if (key === 'f' && focusMode.isActive()) {
+            event.preventDefault();
+
+            focusMode.exitFocusMode();
+        }
     };
 
     window.webContents.on('before-input-event', handler);
@@ -472,6 +500,19 @@ function resizeBrowserView(window) {
 
 function attachResizeHandler(window) {
     window.on('resize', () => {
+        resizeBrowserView(window);
+    });
+
+    /*
+        Entering kiosk for focus mode resizes the window through a path
+        that does not always report as an ordinary resize
+    */
+
+    window.on('enter-full-screen', () => {
+        resizeBrowserView(window);
+    });
+
+    window.on('leave-full-screen', () => {
         resizeBrowserView(window);
     });
 }

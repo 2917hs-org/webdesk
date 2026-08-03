@@ -29,6 +29,20 @@ contextBridge.exposeInMainWorld('browserAPI', {
         return ipcRenderer.invoke('set-home-to-current');
     },
 
+    startFocusMode() {
+        return ipcRenderer.invoke('start-focus-mode');
+    },
+
+    stopFocusMode() {
+        return ipcRenderer.invoke('stop-focus-mode');
+    },
+
+    onFocusModeChange(callback) {
+        ipcRenderer.on('focus-mode-changed', (_, active) => {
+            callback(active);
+        });
+    },
+
     getShieldState() {
         return ipcRenderer.invoke('get-shield-state');
     },
@@ -40,6 +54,8 @@ contextBridge.exposeInMainWorld('browserAPI', {
     onShieldState(callback) {
         ipcRenderer.on('shield-state', (_, state) => {
             callback(state);
+        });
+    },
         });
     },
 
