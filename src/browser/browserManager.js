@@ -7,6 +7,8 @@ const bookmarkStore = require('../bookmarks/bookmarkStore');
 const { createSetupWindow } = require('../onboarding/setupWindow');
 
 const focusMode = require('../focus/focusMode');
+
+const searchEngines = require('../search/searchEngines');
 const adblockStore = require('../privacy/adblockStore');
 
 const adblocker = require('../privacy/adblocker');
@@ -28,6 +30,13 @@ let toolbarHeight = TOOLBAR_HEIGHT;
 */
 
 let currentFavicon = '';
+
+/*
+    What the address bar last sent somewhere as a URL, kept so a guess
+    that turns out not to resolve can be searched for instead
+*/
+
+let pendingOmniboxGuess = null;
 
 function createBrowserView(window) {
     browserView = new BrowserView({
@@ -104,6 +113,12 @@ function registerNavigationEvents() {
         currentFavicon = '';
 
         /*
+            It resolved, so there is nothing left to fall back on
+        */
+
+        pendingOmniboxGuess = null;
+
+        /*
             The exception is per hostname, so blocking is matched to the
             new page before its subresources start arriving
         */
@@ -125,6 +140,34 @@ function registerNavigationEvents() {
         sendToToolbar('timer-availability', isTimerDomain(url));
     });
 
+    /*
+        "node.js" and a mistyped domain both look like hosts, and only
+        DNS can say otherwise. When the guess does not resolve, the text
+        is searched for instead, which is what a browser appears to do.
+    */
+
+    browserView.webContents.on('did-fail-load', (_, errorCode, __, failedUrl, isMainFrame) => {
+        if (!isMainFrame || !pendingOmniboxGuess) return;
+
+        /*
+            Chromium reports the URL it normalised, so "https://node.js"
+            comes back as "https://node.js/" and cannot be compared as
+            plain text
+        */
+
+        if (!isSameUrl(failedUrl, pendingOmniboxGuess.url)) return;
+
+        const unresolved = errorCode === -105 || errorCode === -137;
+
+        if (!unresolved) return;
+
+        const query = pendingOmniboxGuess.query;
+
+        pendingOmniboxGuess = null;
+
+        browserView.webContents.loadURL(searchEngines.buildSearchUrl(query));
+    });
+
     browserView.webContents.on('page-favicon-updated', (_, favicons) => {
         currentFavicon = Array.isArray(favicons) && favicons.length ? favicons[0] : '';
 
@@ -139,6 +182,52 @@ function registerBrowserEvents() {
         if (browserView) {
             browserView.webContents.loadURL(url);
         }
+    });
+
+    /*
+        Raw text from the address bar, which only becomes a URL or a
+        search here, so the choice of engine stays out of the toolbar
+    */
+
+    ipcMain.on('omnibox-submit', (_, text) => {
+        if (!browserView) return;
+
+        const resolved = searchEngines.resolveInput(text);
+
+        if (!resolved) return;
+
+        pendingOmniboxGuess = resolved.type === 'url' ? resolved : null;
+
+        browserView.webContents.loadURL(resolved.url);
+    });
+
+    /*
+        Right-clicking the address bar picks the engine, so switching
+        does not mean editing settings.json
+    */
+
+    ipcMain.on('show-search-menu', (event) => {
+        const engines = searchEngines.getEngines();
+
+        const activeKey = searchEngines.getActiveKey();
+
+        const menu = Menu.buildFromTemplate(
+            Object.keys(engines).map((key) => ({
+                label: 'Search with ' + engines[key].name,
+
+                type: 'radio',
+
+                checked: key === activeKey,
+
+                click: () => {
+                    searchEngines.setActiveKey(key);
+
+                    sendToToolbar('search-engine-changed', searchEngines.describeActive());
+                }
+            }))
+        );
+
+        menu.popup({ window: BrowserWindow.fromWebContents(event.sender) });
     });
 
     ipcMain.on('go-back', () => {
@@ -210,6 +299,10 @@ function registerBrowserEvents() {
 */
 
 function registerToolbarEvents(window) {
+    ipcMain.removeHandler('get-search-engine');
+
+    ipcMain.handle('get-search-engine', () => searchEngines.describeActive());
+
     ipcMain.removeHandler('get-timer-availability');
 
     ipcMain.handle('get-timer-availability', () => {
@@ -426,6 +519,14 @@ function registerShortcuts(window) {
     window.webContents.on('before-input-event', handler);
 
     browserView.webContents.on('before-input-event', handler);
+}
+
+function isSameUrl(a, b) {
+    try {
+        return new URL(a).href === new URL(b).href;
+    } catch {
+        return a === b;
+    }
 }
 
 function isWebUrl(url) {

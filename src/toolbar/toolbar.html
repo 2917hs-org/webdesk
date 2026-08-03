@@ -58,7 +58,12 @@
 
             margin-left: 10px;
 
-            margin-right: 10px;
+            /*
+                Tight, so the engine arrow reads as part of the address
+                bar rather than as another toolbar button
+            */
+
+            margin-right: 2px;
 
             height: 28px;
         }
@@ -139,6 +144,67 @@
 
         #url-scheme.insecure {
             color: #c5221f;
+        }
+
+        /*
+            Sits against the address bar rather than with the other
+            buttons, since it belongs to what is typed there
+        */
+
+        #search-engine {
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            gap: 3px;
+
+            width: auto;
+
+            min-width: 34px;
+
+            margin-left: 0;
+
+            padding: 0 5px;
+
+            font-size: 9px;
+
+            color: #9aa0a6;
+        }
+
+        #search-engine:hover {
+            color: white;
+        }
+
+        #search-engine-icon {
+            width: 14px;
+
+            height: 14px;
+
+            border-radius: 3px;
+
+            object-fit: contain;
+        }
+
+        /*
+            Stands in for an engine whose icon will not load
+        */
+
+        #search-engine-icon.letter {
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            background: #5f6368;
+
+            color: #e8eaed;
+
+            font-size: 9px;
+
+            text-transform: uppercase;
         }
 
         /*
@@ -489,6 +555,8 @@
     <div id="url-display" class="hidden"><span id="url-scheme"></span><span id="url-host"></span><span id="url-rest"></span></div>
 </div>
 
+<button id="search-engine" title="Change search engine">▾</button>
+
 <button id="shield" title="Ad and tracker blocking">🛡</button>
 
 <button id="set-home" title="Set this page as the homepage">⌂+</button>
@@ -657,29 +725,17 @@
         renderUrlDisplay(currentUrl);
     });
 
-    function toNavigableUrl(text) {
-        const trimmed = text.trim();
-
-        if (!trimmed) return null;
-
-        /*
-            Leave any explicit scheme alone, rather than only http/https
-        */
-
-        if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) {
-            return trimmed;
-        }
-
-        return 'https://' + trimmed;
-    }
-
     urlBox.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
-            const url = toNavigableUrl(urlBox.value);
+            if (!urlBox.value.trim()) return;
 
-            if (!url) return;
+            /*
+                Sent as typed. Whether it is somewhere to go or something
+                to look up is decided in the main process, along with
+                which engine to look it up with.
+            */
 
-            browserAPI.navigate(url);
+            browserAPI.submitOmnibox(urlBox.value);
 
             stopEditing();
         }
@@ -688,6 +744,88 @@
             stopEditing();
         }
     });
+
+    /*
+        Search engine
+    */
+
+    const searchEngineButton = document.getElementById('search-engine');
+
+    function engineLetterIcon(engine) {
+        const letter = document.createElement('div');
+
+        letter.id = 'search-engine-icon';
+
+        letter.className = 'letter';
+
+        letter.textContent = (engine.name || '?').charAt(0);
+
+        return letter;
+    }
+
+    /*
+        The engine is shown by its own icon rather than named in the
+        placeholder, so the address bar stays about what is typed there
+    */
+
+    function showSearchEngine(engine) {
+        if (!engine) return;
+
+        searchEngineButton.textContent = '';
+
+        if (engine.icon) {
+            const icon = document.createElement('img');
+
+            icon.id = 'search-engine-icon';
+
+            icon.src = engine.icon;
+
+            icon.addEventListener('error', () => {
+                icon.replaceWith(engineLetterIcon(engine));
+            });
+
+            searchEngineButton.appendChild(icon);
+        } else {
+            searchEngineButton.appendChild(engineLetterIcon(engine));
+        }
+
+        const caret = document.createElement('span');
+
+        caret.textContent = '▾';
+
+        searchEngineButton.appendChild(caret);
+
+        urlBox.placeholder = 'Search or enter a URL';
+
+        searchEngineButton.title = 'Searching with ' + engine.name + ' — click to change';
+    }
+
+    searchEngineButton.addEventListener('click', () => {
+        browserAPI.showSearchMenu();
+    });
+
+    urlBox.addEventListener('contextmenu', (event) => {
+        event.preventDefault();
+
+        browserAPI.showSearchMenu();
+    });
+
+    urlDisplay.addEventListener('contextmenu', (event) => {
+        event.preventDefault();
+
+        browserAPI.showSearchMenu();
+    });
+
+    browserAPI.onSearchEngineChange(showSearchEngine);
+
+    browserAPI
+        .getSearchEngine()
+        .then(showSearchEngine)
+        .catch(() => {
+            /*
+                Asked before the main process was listening
+            */
+        });
 
     document.getElementById('home').addEventListener('contextmenu', (event) => {
         event.preventDefault();
