@@ -8,6 +8,7 @@
     "build": "electron-builder"
   },
   "dependencies": {
+    "@ghostery/adblocker-electron": "^2.18.1",
     "electron-store": "^11.0.0"
   },
   "devDependencies": {
