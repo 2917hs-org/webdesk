@@ -1135,7 +1135,19 @@
         */
 
         ticker = setInterval(render, 250);
+
+        /*
+            Fills the screen and stays above everything else for the
+            length of the countdown
+        */
+
+        browserAPI.startFocusMode();
     }
+
+    /*
+        Reached both when the countdown runs out and when it is stopped
+        by hand, so focus mode is released either way
+    */
 
     function finishTimer() {
         clearInterval(ticker);
@@ -1145,6 +1157,8 @@
         startButton.classList.remove('active');
 
         startButton.textContent = 'Start';
+
+        browserAPI.stopFocusMode();
     }
 
     function resetTimer() {
@@ -1166,6 +1180,17 @@
     });
 
     stopButton.addEventListener('click', resetTimer);
+
+    /*
+        Leaving focus mode by its shortcut ends the countdown too, so
+        the two never disagree about whether a session is running
+    */
+
+    browserAPI.onFocusModeChange((active) => {
+        if (!active && ticker !== null) {
+            resetTimer();
+        }
+    });
 
     /*
         The timer is only offered on the domains listed in settings.

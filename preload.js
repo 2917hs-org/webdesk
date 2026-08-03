@@ -29,6 +29,20 @@ contextBridge.exposeInMainWorld('browserAPI', {
         return ipcRenderer.invoke('set-home-to-current');
     },
 
+    startFocusMode() {
+        return ipcRenderer.invoke('start-focus-mode');
+    },
+
+    stopFocusMode() {
+        return ipcRenderer.invoke('stop-focus-mode');
+    },
+
+    onFocusModeChange(callback) {
+        ipcRenderer.on('focus-mode-changed', (_, active) => {
+            callback(active);
+        });
+    },
+
     getSetupConfig() {
         return ipcRenderer.invoke('get-setup-config');
     },
