@@ -1,0 +1,70 @@
+const store = require('../storage/settingsStore');
+
+/*
+    Domains the timer is offered on.
+
+    Stored in settings.json under "timerDomains", so more domains
+    can be added without a code change. Subdomains are matched too,
+    so "leetcode.com" also covers "www.leetcode.com".
+*/
+
+const DEFAULT_TIMER_DOMAINS = ['leetcode.com'];
+
+function getWebsiteUrl() {
+    return store.get('websiteUrl');
+}
+
+function setWebsiteUrl(url) {
+    store.set('websiteUrl', url);
+}
+
+function getTimerDomains() {
+    const domains = store.get('timerDomains', DEFAULT_TIMER_DOMAINS);
+
+    if (!Array.isArray(domains)) {
+        return DEFAULT_TIMER_DOMAINS;
+    }
+
+    return domains;
+}
+
+function setTimerDomains(domains) {
+    store.set('timerDomains', domains);
+}
+
+function normalizeDomain(domain) {
+    return String(domain)
+        .trim()
+        .toLowerCase()
+        .replace(/\.$/, '');
+}
+
+function isTimerDomain(url) {
+    if (!url) return false;
+
+    let hostname;
+
+    try {
+        hostname = normalizeDomain(new URL(url).hostname);
+    } catch {
+        return false;
+    }
+
+    if (!hostname) return false;
+
+    return getTimerDomains().some((entry) => {
+        const domain = normalizeDomain(entry);
+
+        if (!domain) return false;
+
+        return hostname === domain || hostname.endsWith('.' + domain);
+    });
+}
+
+module.exports = {
+    getWebsiteUrl,
+    setWebsiteUrl,
+    getTimerDomains,
+    setTimerDomains,
+    isTimerDomain
+};

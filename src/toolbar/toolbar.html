@@ -1,0 +1,1196 @@
+<!doctype html>
+
+<html>
+<head>
+    <style>
+        body {
+            margin: 0;
+
+            background: #202124;
+
+            font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        #bar {
+            height: 50px;
+
+            display: flex;
+
+            align-items: center;
+        }
+
+        button {
+            width: 35px;
+
+            height: 30px;
+
+            margin-left: 8px;
+
+            border: none;
+
+            border-radius: 6px;
+
+            background: #303134;
+
+            color: white;
+
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #505050;
+        }
+
+        /*
+            Address bar.
+
+            The input always holds the real URL. While it is not focused
+            an overlay shows the tidied-up form browsers display instead:
+            no https://, no www., and the domain emphasised over the path.
+        */
+
+        #omnibox {
+            position: relative;
+
+            flex: 1;
+
+            max-width: 520px;
+
+            margin-left: 10px;
+
+            margin-right: 10px;
+
+            height: 28px;
+        }
+
+        #url {
+            box-sizing: border-box;
+
+            width: 100%;
+
+            height: 100%;
+
+            margin: 0;
+
+            border-radius: 6px;
+
+            border: none;
+
+            padding-left: 10px;
+
+            font-family: inherit;
+
+            font-size: 13px;
+        }
+
+        #url-display {
+            position: absolute;
+
+            top: 0;
+
+            left: 0;
+
+            right: 0;
+
+            bottom: 0;
+
+            display: flex;
+
+            align-items: center;
+
+            border-radius: 6px;
+
+            background: white;
+
+            padding-left: 10px;
+
+            padding-right: 10px;
+
+            font-size: 13px;
+
+            white-space: nowrap;
+
+            overflow: hidden;
+
+            cursor: text;
+        }
+
+        #url-display.hidden {
+            display: none;
+        }
+
+        /*
+            The registrable domain is what a browser emphasises,
+            so the rest of the URL cannot be used to disguise it
+        */
+
+        #url-host {
+            color: #202124;
+        }
+
+        #url-scheme,
+        #url-rest {
+            color: #5f6368;
+        }
+
+        /*
+            Insecure pages keep a visible http:// rather than hiding it
+        */
+
+        #url-scheme.insecure {
+            color: #c5221f;
+        }
+
+        /*
+            Timer occupies the free space on the right
+        */
+
+        #timer {
+            display: flex;
+
+            align-items: center;
+
+            margin-left: auto;
+
+            margin-right: 10px;
+        }
+
+        /*
+            Hidden unless the current site is a configured timer domain
+        */
+
+        #timer.unavailable {
+            display: none;
+        }
+
+        select {
+            height: 30px;
+
+            border: none;
+
+            border-radius: 6px;
+
+            background: #303134;
+
+            color: white;
+
+            font-size: 13px;
+
+            padding-left: 6px;
+
+            cursor: pointer;
+        }
+
+        #timer-start {
+            width: 56px;
+
+            font-size: 13px;
+        }
+
+        #timer-start.active {
+            background: #8ab4f8;
+
+            color: #202124;
+        }
+
+        #timer-display {
+            width: 62px;
+
+            height: 28px;
+
+            margin-left: 10px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            border: 2px solid #303134;
+
+            border-radius: 6px;
+
+            background: #303134;
+
+            color: #9aa0a6;
+
+            font-size: 14px;
+
+            font-variant-numeric: tabular-nums;
+        }
+
+        #timer-display.running {
+            color: white;
+        }
+
+        /*
+            Final 25% of the countdown
+        */
+
+        #timer-display.warning {
+            border-color: #ea4335;
+
+            color: #ea4335;
+        }
+
+        #timer-stop {
+            margin-left: 8px;
+
+            font-size: 14px;
+
+            visibility: hidden;
+        }
+
+        #timer-stop.visible {
+            visibility: visible;
+        }
+
+        /*
+            Bookmarks
+        */
+
+        #set-home {
+            font-size: 12px;
+        }
+
+        /*
+            Briefly acknowledges a click, since the change itself
+            happens out of sight
+        */
+
+        #set-home.confirmed {
+            background: #81c995;
+
+            color: #202124;
+        }
+
+        #bookmark-toggle.saved {
+            color: #fdd663;
+        }
+
+        #bookmark-bar-toggle.on {
+            background: #505050;
+        }
+
+        /*
+            A strip below the address bar, the way desktop browsers show
+            bookmarks. Anything past the window width scrolls rather than
+            folding into an overflow menu.
+        */
+
+        #bookmark-bar {
+            position: relative;
+
+            display: none;
+
+            align-items: center;
+
+            height: 34px;
+
+            padding: 0 6px;
+
+            border-top: 1px solid #3c4043;
+
+            background: #292a2d;
+
+            overflow-x: auto;
+
+            overflow-y: hidden;
+
+            white-space: nowrap;
+        }
+
+        #bookmark-bar.visible {
+            display: flex;
+        }
+
+        #bookmark-bar::-webkit-scrollbar {
+            height: 0;
+        }
+
+        .bookmark {
+            box-sizing: border-box;
+
+            display: flex;
+
+            align-items: center;
+
+            flex: none;
+
+            max-width: 180px;
+
+            height: 24px;
+
+            margin-right: 2px;
+
+            padding: 0 8px;
+
+            border-radius: 6px;
+
+            color: #e8eaed;
+
+            font-size: 12px;
+
+            cursor: pointer;
+
+            user-select: none;
+        }
+
+        .bookmark:hover {
+            background: #3c4043;
+        }
+
+        .bookmark.dragging {
+            opacity: 0.4;
+        }
+
+        .bookmark-icon {
+            width: 16px;
+
+            height: 16px;
+
+            flex: none;
+
+            margin-right: 6px;
+
+            border-radius: 3px;
+
+            object-fit: contain;
+        }
+
+        /*
+            Stands in for a site with no usable icon
+        */
+
+        .bookmark-letter {
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            background: #5f6368;
+
+            color: #e8eaed;
+
+            font-size: 10px;
+
+            text-transform: uppercase;
+        }
+
+        .bookmark-label {
+            overflow: hidden;
+
+            text-overflow: ellipsis;
+
+            white-space: nowrap;
+        }
+
+        .bookmark-rename {
+            width: 120px;
+
+            height: 18px;
+
+            margin: 0;
+
+            border: none;
+
+            border-radius: 3px;
+
+            padding: 0 4px;
+
+            font-family: inherit;
+
+            font-size: 12px;
+        }
+
+        /*
+            Marks where a dragged bookmark would land. Positioned rather
+            than inserted, so the chips do not shift under the cursor.
+        */
+
+        #bookmark-drop {
+            position: absolute;
+
+            top: 5px;
+
+            display: none;
+
+            width: 2px;
+
+            height: 24px;
+
+            border-radius: 1px;
+
+            background: #8ab4f8;
+
+            pointer-events: none;
+        }
+
+        #bookmark-drop.visible {
+            display: block;
+        }
+
+        #bookmark-empty {
+            padding-left: 6px;
+
+            color: #9aa0a6;
+
+            font-size: 12px;
+        }
+    </style>
+</head>
+
+<body>
+<div id="bar">
+<button onclick="browserAPI.back()">←</button>
+
+<button onclick="browserAPI.forward()">→</button>
+
+<button id="home" onclick="browserAPI.goHome()" title="Home (right-click to change)">⌂</button>
+
+<button onclick="browserAPI.reload()">↻</button>
+
+<div id="omnibox">
+    <input id="url" placeholder="Enter website URL" />
+
+    <div id="url-display" class="hidden"><span id="url-scheme"></span><span id="url-host"></span><span id="url-rest"></span></div>
+</div>
+
+<button id="set-home" title="Set this page as the homepage">⌂+</button>
+
+<button id="bookmark-toggle" title="Bookmark this page">☆</button>
+
+<button id="bookmark-bar-toggle" title="Show bookmarks bar">▤</button>
+
+<div id="timer" class="unavailable">
+    <select id="timer-minutes" title="Timer duration">
+        <option value="15">15 min</option>
+
+        <option value="30">30 min</option>
+
+        <option value="45">45 min</option>
+
+        <option value="60">60 min</option>
+    </select>
+
+    <button id="timer-start">Start</button>
+
+    <div id="timer-display">00:00</div>
+
+    <button id="timer-stop" title="Stop timer">×</button>
+</div>
+</div>
+
+<div id="bookmark-bar"><div id="bookmark-drop"></div></div>
+
+<script>
+    const urlBox = document.getElementById('url');
+
+    const urlDisplay = document.getElementById('url-display');
+
+    const urlScheme = document.getElementById('url-scheme');
+
+    const urlHost = document.getElementById('url-host');
+
+    const urlRest = document.getElementById('url-rest');
+
+    let currentUrl = '';
+
+    function isEditing() {
+        return document.activeElement === urlBox;
+    }
+
+    /*
+        Split a URL the way a browser shows it: the scheme is dropped when
+        it is https, "www." is dropped, the host is emphasised, and the
+        path/query/fragment are dimmed.
+    */
+
+    function renderUrlDisplay(url) {
+        if (!url) {
+            urlDisplay.classList.add('hidden');
+
+            return;
+        }
+
+        let parsed = null;
+
+        try {
+            parsed = new URL(url);
+        } catch {
+            parsed = null;
+        }
+
+        /*
+            Anything that is not a web page (about:blank, data:, a bad
+            URL) is shown verbatim rather than taken apart
+        */
+
+        if (!parsed || (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')) {
+            urlScheme.textContent = '';
+
+            urlScheme.className = '';
+
+            urlHost.textContent = url;
+
+            urlRest.textContent = '';
+
+            urlDisplay.classList.remove('hidden');
+
+            return;
+        }
+
+        const insecure = parsed.protocol === 'http:';
+
+        urlScheme.textContent = parsed.protocol === 'https:' ? '' : parsed.protocol + '//';
+
+        urlScheme.className = insecure ? 'insecure' : '';
+
+        urlHost.textContent = parsed.host.replace(/^www\./, '');
+
+        const rest = parsed.pathname === '/' && !parsed.search && !parsed.hash
+            ? ''
+            : parsed.pathname + parsed.search + parsed.hash;
+
+        urlRest.textContent = rest;
+
+        urlDisplay.classList.remove('hidden');
+    }
+
+    function showRealUrl() {
+        urlDisplay.classList.add('hidden');
+
+        urlBox.value = currentUrl;
+
+        urlBox.focus();
+
+        urlBox.select();
+
+        /*
+            select() leaves a long URL scrolled to its end; browsers
+            keep the start of the URL in view
+        */
+
+        urlBox.scrollLeft = 0;
+    }
+
+    function setCurrentUrl(url) {
+        currentUrl = url;
+
+        /*
+            Never overwrite what is being typed
+        */
+
+        if (isEditing()) return;
+
+        urlBox.value = url;
+
+        renderUrlDisplay(url);
+    }
+
+    /*
+        mousedown rather than click, so the caret never lands mid-text
+        before the select() below runs
+    */
+
+    urlDisplay.addEventListener('mousedown', (event) => {
+        event.preventDefault();
+
+        showRealUrl();
+    });
+
+    urlBox.addEventListener('focus', () => {
+        urlDisplay.classList.add('hidden');
+    });
+
+    /*
+        Restores the tidy display directly rather than waiting on a blur
+        event, which does not arrive when the window is not focused
+    */
+
+    function stopEditing() {
+        urlBox.value = currentUrl;
+
+        renderUrlDisplay(currentUrl);
+
+        urlBox.blur();
+    }
+
+    urlBox.addEventListener('blur', () => {
+        urlBox.value = currentUrl;
+
+        renderUrlDisplay(currentUrl);
+    });
+
+    function toNavigableUrl(text) {
+        const trimmed = text.trim();
+
+        if (!trimmed) return null;
+
+        /*
+            Leave any explicit scheme alone, rather than only http/https
+        */
+
+        if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) {
+            return trimmed;
+        }
+
+        return 'https://' + trimmed;
+    }
+
+    urlBox.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            const url = toNavigableUrl(urlBox.value);
+
+            if (!url) return;
+
+            browserAPI.navigate(url);
+
+            stopEditing();
+        }
+
+        if (event.key === 'Escape') {
+            stopEditing();
+        }
+    });
+
+    document.getElementById('home').addEventListener('contextmenu', (event) => {
+        event.preventDefault();
+
+        browserAPI.showHomeMenu();
+    });
+
+    const setHomeButton = document.getElementById('set-home');
+
+    const SET_HOME_GLYPH = setHomeButton.textContent;
+
+    let confirmTimer = null;
+
+    setHomeButton.addEventListener('click', () => {
+        browserAPI.setHomeToCurrentPage().then((url) => {
+            /*
+                Nothing to pin on a page that is not a web page
+            */
+
+            if (!url) return;
+
+            setHomeButton.textContent = '✓';
+
+            setHomeButton.classList.add('confirmed');
+
+            setHomeButton.title = 'Homepage is now ' + url;
+
+            /*
+                Restored from the glyph captured at startup, so clicking
+                again mid-confirmation cannot make the tick stick
+            */
+
+            clearTimeout(confirmTimer);
+
+            confirmTimer = setTimeout(() => {
+                setHomeButton.textContent = SET_HOME_GLYPH;
+
+                setHomeButton.classList.remove('confirmed');
+
+                setHomeButton.title = 'Set this page as the homepage';
+            }, 1400);
+        });
+    });
+
+    browserAPI.onURLChange((url) => {
+        setCurrentUrl(url);
+
+        refreshBookmarks();
+    });
+
+    browserAPI.onLoading((loading) => {
+        if (loading) {
+            document.title = 'Loading...';
+        } else {
+            document.title = 'WebDesk';
+        }
+    });
+
+    /*
+        Bookmarks
+    */
+
+    const bookmarkToggle = document.getElementById('bookmark-toggle');
+
+    const bookmarkBarToggle = document.getElementById('bookmark-bar-toggle');
+
+    const bookmarkBar = document.getElementById('bookmark-bar');
+
+    const dropIndicator = document.getElementById('bookmark-drop');
+
+    const BAR_SHORTCUT = navigator.userAgent.includes('Mac') ? '⌘⇧B' : 'Ctrl+Shift+B';
+
+    let bookmarks = [];
+
+    let barVisible = true;
+
+    /*
+        Set for the length of a drag, so the bar ignores anything
+        dragged into it from elsewhere
+    */
+
+    let dragUrl = '';
+
+    let dropIndex = -1;
+
+    function renderBookmarks(state) {
+        bookmarks = state.bookmarks;
+
+        barVisible = state.barVisible !== false;
+
+        bookmarkToggle.textContent = state.bookmarked ? '★' : '☆';
+
+        bookmarkToggle.classList.toggle('saved', state.bookmarked);
+
+        bookmarkBarToggle.classList.toggle('on', barVisible);
+
+        bookmarkBarToggle.title =
+            (barVisible ? 'Hide' : 'Show') + ' bookmarks bar (' + BAR_SHORTCUT + ')';
+
+        bookmarkBar.classList.toggle('visible', barVisible);
+
+        bookmarkBar.textContent = '';
+
+        /*
+            Cleared along with the chips, so it is put back rather
+            than rebuilt
+        */
+
+        bookmarkBar.appendChild(dropIndicator);
+
+        if (bookmarks.length === 0) {
+            const empty = document.createElement('div');
+
+            empty.id = 'bookmark-empty';
+
+            empty.textContent = 'Bookmarks you add with ☆ will appear here.';
+
+            bookmarkBar.appendChild(empty);
+        }
+
+        bookmarks.forEach((bookmark) => {
+            bookmarkBar.appendChild(createChip(bookmark));
+        });
+
+        syncToolbarHeight();
+    }
+
+    function createChip(bookmark) {
+        const chip = document.createElement('div');
+
+        chip.className = 'bookmark';
+
+        chip.title = bookmark.title + '\n' + bookmark.url;
+
+        chip.draggable = true;
+
+        chip.dataset.url = bookmark.url;
+
+        chip.appendChild(createIcon(bookmark));
+
+        const label = document.createElement('span');
+
+        label.className = 'bookmark-label';
+
+        label.textContent = bookmark.title;
+
+        chip.appendChild(label);
+
+        chip.addEventListener('click', () => {
+            browserAPI.openBookmark(bookmark.url);
+        });
+
+        chip.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+
+            browserAPI.showBookmarkMenu(bookmark.url);
+        });
+
+        chip.addEventListener('dragstart', (event) => {
+            dragUrl = bookmark.url;
+
+            event.dataTransfer.effectAllowed = 'move';
+
+            /*
+                The drag has to carry something before dragover fires
+            */
+
+            event.dataTransfer.setData('text/plain', bookmark.url);
+
+            chip.classList.add('dragging');
+        });
+
+        chip.addEventListener('dragend', () => {
+            chip.classList.remove('dragging');
+
+            hideDropIndicator();
+
+            dragUrl = '';
+        });
+
+        return chip;
+    }
+
+    function createIcon(bookmark) {
+        if (!bookmark.favicon) {
+            return createLetterIcon(bookmark);
+        }
+
+        const icon = document.createElement('img');
+
+        icon.className = 'bookmark-icon';
+
+        icon.src = bookmark.favicon;
+
+        /*
+            A site whose icon has moved or is blocked falls back to the
+            lettered square rather than showing a broken image
+        */
+
+        icon.addEventListener('error', () => {
+            icon.replaceWith(createLetterIcon(bookmark));
+        });
+
+        return icon;
+    }
+
+    function createLetterIcon(bookmark) {
+        const icon = document.createElement('div');
+
+        icon.className = 'bookmark-icon bookmark-letter';
+
+        try {
+            icon.textContent = new URL(bookmark.url).hostname.replace(/^www\./, '').charAt(0);
+        } catch {
+            icon.textContent = (bookmark.title || '?').charAt(0);
+        }
+
+        return icon;
+    }
+
+    /*
+        Renaming is done in the bar itself, since the native context
+        menu that starts it cannot hold a text field
+    */
+
+    function startRename(url) {
+        const chip = Array.from(bookmarkBar.querySelectorAll('.bookmark'))
+            .find((candidate) => candidate.dataset.url === url);
+
+        if (!chip) return;
+
+        const label = chip.querySelector('.bookmark-label');
+
+        const input = document.createElement('input');
+
+        input.className = 'bookmark-rename';
+
+        input.value = label.textContent;
+
+        chip.draggable = false;
+
+        label.replaceWith(input);
+
+        input.focus();
+
+        input.select();
+
+        let finished = false;
+
+        function finish(commit) {
+            if (finished) return;
+
+            finished = true;
+
+            if (commit && input.value.trim()) {
+                browserAPI.renameBookmark(url, input.value).then(applyState);
+            } else {
+                refreshBookmarks();
+            }
+        }
+
+        /*
+            Clicking the field would otherwise open the bookmark
+        */
+
+        input.addEventListener('mousedown', (event) => {
+            event.stopPropagation();
+        });
+
+        input.addEventListener('click', (event) => {
+            event.stopPropagation();
+        });
+
+        input.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                finish(true);
+            }
+
+            if (event.key === 'Escape') {
+                finish(false);
+            }
+        });
+
+        input.addEventListener('blur', () => {
+            finish(true);
+        });
+    }
+
+    /*
+        The gap the dragged bookmark would fall into, from which chip
+        centres the cursor has passed
+    */
+
+    function insertIndexFor(clientX) {
+        const chips = bookmarkBar.querySelectorAll('.bookmark');
+
+        for (let index = 0; index < chips.length; index += 1) {
+            const box = chips[index].getBoundingClientRect();
+
+            if (clientX < box.left + box.width / 2) {
+                return index;
+            }
+        }
+
+        return chips.length;
+    }
+
+    function showDropIndicator(index) {
+        const chips = bookmarkBar.querySelectorAll('.bookmark');
+
+        if (chips.length === 0) return;
+
+        const last = chips[chips.length - 1];
+
+        dropIndicator.style.left = index < chips.length
+            ? chips[index].offsetLeft - 2 + 'px'
+            : last.offsetLeft + last.offsetWidth + 'px';
+
+        dropIndicator.classList.add('visible');
+    }
+
+    function hideDropIndicator() {
+        dropIndicator.classList.remove('visible');
+
+        dropIndex = -1;
+    }
+
+    bookmarkBar.addEventListener('dragover', (event) => {
+        if (!dragUrl) return;
+
+        event.preventDefault();
+
+        event.dataTransfer.dropEffect = 'move';
+
+        dropIndex = insertIndexFor(event.clientX);
+
+        showDropIndicator(dropIndex);
+    });
+
+    bookmarkBar.addEventListener('dragleave', (event) => {
+        if (event.target === bookmarkBar) {
+            hideDropIndicator();
+        }
+    });
+
+    bookmarkBar.addEventListener('drop', (event) => {
+        if (!dragUrl || dropIndex === -1) return;
+
+        event.preventDefault();
+
+        const from = bookmarks.findIndex((bookmark) => bookmark.url === dragUrl);
+
+        /*
+            Where it lands once it has been lifted out of the bar, which
+            is one place to the left when it moves rightwards
+        */
+
+        const target = dropIndex > from ? dropIndex - 1 : dropIndex;
+
+        hideDropIndicator();
+
+        if (from !== -1 && target !== from) {
+            browserAPI.moveBookmark(dragUrl, target).then(applyState);
+        }
+    });
+
+    function applyState(state) {
+        renderBookmarks(state);
+    }
+
+    function refreshBookmarks() {
+        browserAPI
+            .getBookmarkState()
+            .then(applyState)
+            .catch(() => {
+                /*
+                    Asked before the main process was listening
+                */
+            });
+    }
+
+    /*
+        The BrowserView sits on top of this page, so the bar is only
+        visible if the view is pushed down to make room for it
+    */
+
+    function syncToolbarHeight() {
+        const barHeight = document.getElementById('bar').offsetHeight;
+
+        browserAPI.setToolbarHeight(barHeight + (barVisible ? bookmarkBar.offsetHeight : 0));
+    }
+
+    bookmarkToggle.addEventListener('click', () => {
+        browserAPI.toggleBookmark().then(applyState);
+    });
+
+    bookmarkBarToggle.addEventListener('click', () => {
+        browserAPI.setBookmarkBarVisible(!barVisible).then(applyState);
+    });
+
+    /*
+        Deleting from the context menu and the bar's shortcut both act
+        in the main process, which pushes the new state back here
+    */
+
+    browserAPI.onBookmarkState(applyState);
+
+    browserAPI.onBookmarkRename(startRename);
+
+    refreshBookmarks();
+
+    /*
+        Countdown timer
+    */
+
+    const WARNING_RATIO = 0.75;
+
+    const timerPanel = document.getElementById('timer');
+
+    const minutesSelect = document.getElementById('timer-minutes');
+
+    const startButton = document.getElementById('timer-start');
+
+    const display = document.getElementById('timer-display');
+
+    const stopButton = document.getElementById('timer-stop');
+
+    let deadline = null;
+
+    let totalMs = 0;
+
+    let ticker = null;
+
+    function formatRemaining(remainingMs) {
+        const totalSeconds = Math.ceil(remainingMs / 1000);
+
+        const minutes = Math.floor(totalSeconds / 60);
+
+        const seconds = totalSeconds % 60;
+
+        return String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+    }
+
+    function render() {
+        const remaining = Math.max(0, deadline - Date.now());
+
+        display.textContent = formatRemaining(remaining);
+
+        /*
+            Red border once 75% of the total time has elapsed
+        */
+
+        display.classList.toggle('warning', remaining <= totalMs * (1 - WARNING_RATIO));
+
+        if (remaining === 0) {
+            finishTimer();
+        }
+    }
+
+    function startTimer(minutes) {
+        clearInterval(ticker);
+
+        totalMs = minutes * 60 * 1000;
+
+        deadline = Date.now() + totalMs;
+
+        startButton.classList.add('active');
+
+        startButton.textContent = 'Restart';
+
+        display.classList.add('running');
+
+        stopButton.classList.add('visible');
+
+        render();
+
+        /*
+            Sub-second tick so the seconds never appear to skip
+        */
+
+        ticker = setInterval(render, 250);
+    }
+
+    function finishTimer() {
+        clearInterval(ticker);
+
+        ticker = null;
+
+        startButton.classList.remove('active');
+
+        startButton.textContent = 'Start';
+    }
+
+    function resetTimer() {
+        finishTimer();
+
+        deadline = null;
+
+        totalMs = 0;
+
+        display.textContent = '00:00';
+
+        display.classList.remove('running', 'warning');
+
+        stopButton.classList.remove('visible');
+    }
+
+    startButton.addEventListener('click', () => {
+        startTimer(Number(minutesSelect.value));
+    });
+
+    stopButton.addEventListener('click', resetTimer);
+
+    /*
+        The timer is only offered on the domains listed in settings.
+
+        A running countdown is kept alive while off-domain, so leaving
+        the site and coming back does not lose the remaining time.
+    */
+
+    function setTimerAvailability(enabled) {
+        timerPanel.classList.toggle('unavailable', !enabled);
+    }
+
+    browserAPI.onTimerAvailability(setTimerAvailability);
+
+    browserAPI
+        .getTimerAvailability()
+        .then(setTimerAvailability)
+        .catch(() => {
+            /*
+                Asked before the main process was listening. Stay hidden
+                until the next navigation reports the current domain.
+            */
+
+            setTimerAvailability(false);
+        });
+</script>
+</body>
+</html>

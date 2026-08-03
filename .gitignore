@@ -1,0 +1,76 @@
+# ==========================
+# Node dependencies
+# ==========================
+node_modules/
+
+
+# ==========================
+# Electron build output
+# ==========================
+dist/
+release/
+out/
+
+
+# ==========================
+# Logs
+# ==========================
+*.log
+logs/
+
+
+# ==========================
+# OS files (macOS)
+# ==========================
+.DS_Store
+.AppleDouble
+.LSOverride
+
+
+# ==========================
+# VS Code
+# ==========================
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+
+# ==========================
+# Electron local data
+# ==========================
+# Development user data
+.user-data/
+electron-user-data/
+
+
+# ==========================
+# Environment files
+# ==========================
+.env
+.env.*
+
+
+# ==========================
+# Temporary files
+# ==========================
+*.tmp
+*.temp
+*.swp
+
+
+# ==========================
+# Build artifacts
+# ==========================
+*.dmg
+*.zip
+*.exe
+*.app
+
+
+# ==========================
+# Caches
+# ==========================
+.cache/
+.parcel-cache/
+.eslintcache
+/.idea

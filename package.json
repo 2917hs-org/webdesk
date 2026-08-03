@@ -1,0 +1,32 @@
+{
+  "name": "webdesk",
+  "productName": "WebDesk",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "dependencies": {
+    "electron-store": "^11.0.0"
+  },
+  "devDependencies": {
+    "electron": "latest",
+    "electron-builder": "latest",
+    "eslint": "^10.8.0"
+  },
+  "build": {
+    "appId": "com.webdesk.app",
+    "productName": "WebDesk",
+    "files": [
+      "**/*",
+      "!node_modules/.cache"
+    ],
+    "mac": {
+      "icon": "assets/icon.icns",
+      "target": [
+        "dmg"
+      ]
+    }
+  }
+}

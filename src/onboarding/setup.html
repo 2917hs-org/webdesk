@@ -1,0 +1,272 @@
+<!doctype html>
+
+<html>
+<head>
+    <style>
+        /*
+            The window is the dialog, rather than a floating card inside
+            it, so nothing is framed by dead space
+        */
+
+        body {
+            box-sizing: border-box;
+
+            margin: 0;
+
+            padding: 20px;
+
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+            background: white;
+        }
+
+        h1 {
+            margin: 0 0 6px;
+
+            font-size: 20px;
+        }
+
+        p {
+            margin: 0 0 16px;
+
+            color: #666;
+
+            font-size: 13px;
+        }
+
+        label {
+            display: block;
+
+            margin-bottom: 6px;
+
+            font-size: 12px;
+
+            font-weight: 600;
+        }
+
+        input {
+            width: 100%;
+
+            height: 34px;
+
+            font-size: 13px;
+
+            padding-left: 10px;
+
+            box-sizing: border-box;
+
+            border-radius: 6px;
+
+            border: 1px solid #ccc;
+        }
+
+        /*
+            Side by side, so the second button costs no extra height.
+            A hidden one collapses and leaves the other full width.
+        */
+
+        .actions {
+            display: flex;
+
+            gap: 8px;
+
+            margin-top: 16px;
+        }
+
+        button {
+            flex: 1;
+
+            height: 34px;
+
+            border: none;
+
+            border-radius: 6px;
+
+            background: #007aff;
+
+            color: white;
+
+            font-size: 13px;
+
+            cursor: pointer;
+        }
+
+        #useCurrent {
+            border: 1px solid #007aff;
+
+            background: white;
+
+            color: #007aff;
+        }
+
+        #useCurrent:hover {
+            background: #f0f6ff;
+        }
+
+        #useCurrent[hidden] {
+            display: none;
+        }
+
+        #currentPage {
+            margin: 8px 0 0;
+
+            font-size: 12px;
+
+            white-space: nowrap;
+
+            overflow: hidden;
+
+            text-overflow: ellipsis;
+        }
+
+        #currentPage[hidden] {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+<h1 id="heading">Welcome to WebDesk</h1>
+
+<p id="intro">Create a dedicated desktop app for your favorite website.</p>
+
+<label> Website URL </label>
+
+<form id="setupForm">
+    <input id="websiteUrl" placeholder="https://leetcode.com" />
+
+    <p id="currentPage" hidden>Currently open: <span id="currentPageUrl"></span></p>
+
+    <div class="actions">
+        <button id="useCurrent" type="button" hidden>Use current page</button>
+
+        <button id="save" type="submit">Create WebDesk</button>
+    </div>
+</form>
+
+<script>
+    const input = document.getElementById('websiteUrl');
+
+    const button = document.getElementById('save');
+
+    function validateAndSave() {
+        let url = input.value.trim();
+
+        if (url.length === 0) {
+            alert('Please enter a website URL');
+            input.focus();
+            return;
+        }
+
+        // Add protocol automatically
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            url = 'https://' + url;
+        }
+
+        let parsedUrl;
+
+        try {
+            parsedUrl = new URL(url);
+        } catch (error) {
+            alert('Invalid website URL');
+            input.focus();
+            return;
+        }
+
+        // Only allow http/https
+        if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+            alert('Only HTTP and HTTPS URLs are allowed');
+            input.focus();
+            return;
+        }
+
+        // Require domain
+        if (!parsedUrl.hostname || !parsedUrl.hostname.includes('.')) {
+            alert('Please enter a valid domain');
+            input.focus();
+            return;
+        }
+
+        window.browserAPI.saveUrl(url);
+    }
+
+    /*
+        The same page introduces the app on first launch and edits the
+        site later, so the copy follows whichever it was opened for
+    */
+
+    const useCurrent = document.getElementById('useCurrent');
+
+    /*
+        Only pages the app could actually be pinned to are worth
+        offering, which rules out about:blank and the like
+    */
+
+    function isOfferable(url) {
+        try {
+            const protocol = new URL(url).protocol;
+
+            return protocol === 'http:' || protocol === 'https:';
+        } catch {
+            return false;
+        }
+    }
+
+    window.browserAPI.getSetupConfig()
+        .then((config) => {
+            if (!config) return;
+
+            if (config.currentUrl) {
+                document.getElementById('heading').textContent = 'Change homepage';
+
+                document.getElementById('intro').textContent =
+                    'The site this app opens on, and where the home button goes.';
+
+                button.textContent = 'Save';
+
+                input.value = config.currentUrl;
+
+                input.select();
+            }
+
+            if (!isOfferable(config.currentPageUrl)) return;
+
+            document.getElementById('currentPageUrl').textContent = config.currentPageUrl;
+
+            document.getElementById('currentPage').hidden = false;
+
+            useCurrent.hidden = false;
+
+            useCurrent.title = config.currentPageUrl;
+
+            /*
+                Fills the field rather than saving outright, so the URL
+                can still be seen and trimmed before it is committed
+            */
+
+            useCurrent.addEventListener('click', () => {
+                input.value = config.currentPageUrl;
+
+                input.focus();
+            });
+        })
+        .catch(() => {
+            /*
+                Asked before the main process was listening
+            */
+        });
+
+    button.addEventListener('click', validateAndSave);
+
+    input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+
+            validateAndSave();
+        }
+    });
+
+    input.focus();
+</script>
+</body>
+</html>
