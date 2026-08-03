@@ -249,6 +249,38 @@
             Bookmarks
         */
 
+        /*
+            Widens to fit the count once a page has had something
+            blocked on it
+        */
+
+        #shield {
+            width: auto;
+
+            min-width: 35px;
+
+            padding: 0 8px;
+
+            font-size: 12px;
+        }
+
+        #shield .count {
+            margin-left: 4px;
+
+            color: #8ab4f8;
+
+            font-variant-numeric: tabular-nums;
+        }
+
+        /*
+            Dimmed where the user has turned blocking off, the way a
+            browser greys out its shield
+        */
+
+        #shield.off {
+            opacity: 0.45;
+        }
+
         #set-home {
             font-size: 12px;
         }
@@ -457,6 +489,8 @@
     <div id="url-display" class="hidden"><span id="url-scheme"></span><span id="url-host"></span><span id="url-rest"></span></div>
 </div>
 
+<button id="shield" title="Ad and tracker blocking">🛡</button>
+
 <button id="set-home" title="Set this page as the homepage">⌂+</button>
 
 <button id="bookmark-toggle" title="Bookmark this page">☆</button>
@@ -660,6 +694,62 @@
 
         browserAPI.showHomeMenu();
     });
+
+    /*
+        Shield
+    */
+
+    const shieldButton = document.getElementById('shield');
+
+    function renderShield(state) {
+        shieldButton.textContent = '🛡';
+
+        shieldButton.classList.toggle('off', !state.blocking);
+
+        if (state.blocking && state.blocked > 0) {
+            const count = document.createElement('span');
+
+            count.className = 'count';
+
+            count.textContent = String(state.blocked);
+
+            shieldButton.appendChild(count);
+        }
+
+        if (!state.ready) {
+            /*
+                Says so plainly when the lists could not be fetched,
+                rather than looking like blocking is on
+            */
+
+            shieldButton.title = state.status === 'unavailable'
+                ? 'Ad blocker could not load its filter lists — retrying'
+                : 'Ad blocker still loading its filter lists';
+
+            return;
+        }
+
+        const site = state.host || 'this site';
+
+        shieldButton.title = state.blocking
+            ? state.blocked + ' blocked on this page — click to turn blocking off for ' + site
+            : 'Blocking is off for ' + site + ' — click to turn it back on';
+    }
+
+    shieldButton.addEventListener('click', () => {
+        browserAPI.toggleShieldForSite().then(renderShield);
+    });
+
+    browserAPI.onShieldState(renderShield);
+
+    browserAPI
+        .getShieldState()
+        .then(renderShield)
+        .catch(() => {
+            /*
+                Asked before the main process was listening
+            */
+        });
 
     const setHomeButton = document.getElementById('set-home');
 
