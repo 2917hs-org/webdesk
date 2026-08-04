@@ -47,12 +47,22 @@ contextBridge.exposeInMainWorld('browserAPI', {
         return ipcRenderer.invoke('set-home-to-current');
     },
 
-    startFocusMode() {
-        return ipcRenderer.invoke('start-focus-mode');
+    toggleFocusMode() {
+        return ipcRenderer.invoke('toggle-focus-mode');
     },
 
-    stopFocusMode() {
-        return ipcRenderer.invoke('stop-focus-mode');
+    toggleMaximise() {
+        return ipcRenderer.invoke('toggle-maximise');
+    },
+
+    isMaximised() {
+        return ipcRenderer.invoke('is-maximised');
+    },
+
+    onMaximiseChange(callback) {
+        ipcRenderer.on('maximise-changed', (_, maximised) => {
+            callback(maximised);
+        });
     },
 
     onFocusModeChange(callback) {
@@ -93,16 +103,6 @@ contextBridge.exposeInMainWorld('browserAPI', {
 
     saveUrl(url) {
         ipcRenderer.send('save-url', url);
-    },
-
-    onTimerAvailability(callback) {
-        ipcRenderer.on('timer-availability', (_, enabled) => {
-            callback(enabled);
-        });
-    },
-
-    getTimerAvailability() {
-        return ipcRenderer.invoke('get-timer-availability');
     },
 
     getBookmarkState() {
