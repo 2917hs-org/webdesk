@@ -1,47 +1,47 @@
 <!doctype html>
 
 <html>
-<head>
-    <style>
-        body {
-            margin: 0;
+    <head>
+        <style>
+            body {
+                margin: 0;
 
-            background: #202124;
+                background: #202124;
 
-            font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
-        }
+                font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+            }
 
-        #bar {
-            height: 50px;
+            #bar {
+                height: 50px;
 
-            display: flex;
+                display: flex;
 
-            align-items: center;
-        }
+                align-items: center;
+            }
 
-        button {
-            width: 35px;
+            button {
+                width: 35px;
 
-            height: 30px;
+                height: 30px;
 
-            margin-left: 8px;
+                margin-left: 8px;
 
-            border: none;
+                border: none;
 
-            border-radius: 6px;
+                border-radius: 6px;
 
-            background: #303134;
+                background: #303134;
 
-            color: white;
+                color: white;
 
-            cursor: pointer;
-        }
+                cursor: pointer;
+            }
 
-        button:hover {
-            background: #505050;
-        }
+            button:hover {
+                background: #505050;
+            }
 
-        /*
+            /*
             Address bar.
 
             The input always holds the real URL. While it is not focused
@@ -49,1215 +49,1229 @@
             no https://, no www., and the domain emphasised over the path.
         */
 
-        #omnibox {
-            position: relative;
+            #omnibox {
+                position: relative;
 
-            flex: 1;
+                flex: 1;
 
-            max-width: 520px;
+                max-width: 520px;
 
-            margin-left: 10px;
+                margin-left: 10px;
 
-            /*
+                /*
                 Tight, so the engine arrow reads as part of the address
                 bar rather than as another toolbar button
             */
 
-            margin-right: 2px;
+                margin-right: 2px;
 
-            height: 28px;
-        }
+                height: 28px;
+            }
 
-        #url {
-            box-sizing: border-box;
+            #url {
+                box-sizing: border-box;
 
-            width: 100%;
+                width: 100%;
 
-            height: 100%;
+                height: 100%;
 
-            margin: 0;
+                margin: 0;
 
-            border-radius: 6px;
+                border-radius: 6px;
 
-            border: none;
+                border: none;
 
-            padding-left: 10px;
+                padding-left: 10px;
 
-            font-family: inherit;
+                font-family: inherit;
 
-            font-size: 13px;
-        }
+                font-size: 13px;
+            }
 
-        #url-display {
-            position: absolute;
+            #url-display {
+                position: absolute;
 
-            top: 0;
+                top: 0;
 
-            left: 0;
+                left: 0;
 
-            right: 0;
+                right: 0;
 
-            bottom: 0;
+                bottom: 0;
 
-            display: flex;
+                display: flex;
 
-            align-items: center;
+                align-items: center;
 
-            border-radius: 6px;
+                border-radius: 6px;
 
-            background: white;
+                background: white;
 
-            padding-left: 10px;
+                padding-left: 10px;
 
-            padding-right: 10px;
+                padding-right: 10px;
 
-            font-size: 13px;
+                font-size: 13px;
 
-            white-space: nowrap;
+                white-space: nowrap;
 
-            overflow: hidden;
+                overflow: hidden;
 
-            cursor: text;
-        }
+                cursor: text;
+            }
 
-        #url-display.hidden {
-            display: none;
-        }
+            #url-display.hidden {
+                display: none;
+            }
 
-        /*
+            /*
             The registrable domain is what a browser emphasises,
             so the rest of the URL cannot be used to disguise it
         */
 
-        #url-host {
-            color: #202124;
-        }
+            #url-host {
+                color: #202124;
+            }
 
-        #url-scheme,
-        #url-rest {
-            color: #5f6368;
-        }
+            #url-scheme,
+            #url-rest {
+                color: #5f6368;
+            }
 
-        /*
+            /*
             Insecure pages keep a visible http:// rather than hiding it
         */
 
-        #url-scheme.insecure {
-            color: #c5221f;
-        }
+            #url-scheme.insecure {
+                color: #c5221f;
+            }
 
-        /*
+            /*
             Sits against the address bar rather than with the other
             buttons, since it belongs to what is typed there
         */
 
-        #search-engine {
-            display: flex;
+            #search-engine {
+                display: flex;
 
-            align-items: center;
+                align-items: center;
 
-            justify-content: center;
+                justify-content: center;
 
-            gap: 3px;
+                gap: 3px;
 
-            width: auto;
+                width: auto;
 
-            min-width: 34px;
+                min-width: 34px;
 
-            margin-left: 0;
+                margin-left: 0;
 
-            padding: 0 5px;
+                padding: 0 5px;
 
-            font-size: 9px;
+                font-size: 9px;
 
-            color: #9aa0a6;
-        }
+                color: #9aa0a6;
+            }
 
-        #search-engine:hover {
-            color: white;
-        }
+            #search-engine:hover {
+                color: white;
+            }
 
-        #search-engine-icon {
-            width: 14px;
+            #search-engine-icon {
+                width: 14px;
 
-            height: 14px;
+                height: 14px;
 
-            border-radius: 3px;
+                border-radius: 3px;
 
-            object-fit: contain;
-        }
+                object-fit: contain;
+            }
 
-        /*
+            /*
             Stands in for an engine whose icon will not load
         */
 
-        #search-engine-icon.letter {
-            display: flex;
+            #search-engine-icon.letter {
+                display: flex;
 
-            align-items: center;
+                align-items: center;
 
-            justify-content: center;
+                justify-content: center;
 
-            background: #5f6368;
+                background: #5f6368;
 
-            color: #e8eaed;
+                color: #e8eaed;
 
-            font-size: 9px;
+                font-size: 9px;
 
-            text-transform: uppercase;
-        }
+                text-transform: uppercase;
+            }
 
-        /*
+            /*
             Focus mode and window controls
         */
 
-        #focus-toggle.on {
-            background: #8ab4f8;
+            #focus-toggle.on {
+                background: #8ab4f8;
 
-            color: #202124;
-        }
+                color: #202124;
+            }
 
-        /*
+            /*
             Pushed to the far right, away from the page controls
         */
 
-        #maximise {
-            margin-left: auto;
+            #maximise {
+                margin-left: auto;
 
-            margin-right: 10px;
+                margin-right: 10px;
 
-            font-size: 13px;
-        }
+                font-size: 13px;
+            }
 
-        /*
+            /*
             Bookmarks
         */
 
-        /*
+            /*
             Widens to fit the count once a page has had something
             blocked on it
         */
 
-        #shield {
-            width: auto;
+            #shield {
+                width: auto;
 
-            min-width: 35px;
+                min-width: 35px;
 
-            padding: 0 8px;
+                padding: 0 8px;
 
-            font-size: 12px;
-        }
+                font-size: 12px;
+            }
 
-        #shield .count {
-            margin-left: 4px;
+            #shield .count {
+                margin-left: 4px;
 
-            color: #8ab4f8;
+                color: #8ab4f8;
 
-            font-variant-numeric: tabular-nums;
-        }
+                font-variant-numeric: tabular-nums;
+            }
 
-        /*
+            /*
             Dimmed where the user has turned blocking off, the way a
             browser greys out its shield
         */
 
-        #shield.off {
-            opacity: 0.45;
-        }
+            #shield.off {
+                opacity: 0.45;
+            }
 
-        #set-home {
-            font-size: 12px;
-        }
+            #set-home {
+                font-size: 12px;
+            }
 
-        /*
+            /*
             Briefly acknowledges a click, since the change itself
             happens out of sight
         */
 
-        #set-home.confirmed {
-            background: #81c995;
+            #set-home.confirmed {
+                background: #81c995;
 
-            color: #202124;
-        }
+                color: #202124;
+            }
 
-        #bookmark-toggle.saved {
-            color: #fdd663;
-        }
+            #bookmark-toggle.saved {
+                color: #fdd663;
+            }
 
-        #bookmark-bar-toggle.on {
-            background: #505050;
-        }
+            #bookmark-bar-toggle.on {
+                background: #505050;
+            }
 
-        /*
+            /*
             A strip below the address bar, the way desktop browsers show
             bookmarks. Anything past the window width scrolls rather than
             folding into an overflow menu.
         */
 
-        #bookmark-bar {
-            position: relative;
+            #bookmark-bar {
+                position: relative;
 
-            display: none;
+                display: none;
 
-            align-items: center;
+                align-items: center;
 
-            height: 34px;
+                height: 34px;
 
-            padding: 0 6px;
+                padding: 0 6px;
 
-            border-top: 1px solid #3c4043;
+                border-top: 1px solid #3c4043;
 
-            background: #292a2d;
+                background: #292a2d;
 
-            overflow-x: auto;
+                overflow-x: auto;
 
-            overflow-y: hidden;
+                overflow-y: hidden;
 
-            white-space: nowrap;
-        }
+                white-space: nowrap;
+            }
 
-        #bookmark-bar.visible {
-            display: flex;
-        }
+            #bookmark-bar.visible {
+                display: flex;
+            }
 
-        #bookmark-bar::-webkit-scrollbar {
-            height: 0;
-        }
+            #bookmark-bar::-webkit-scrollbar {
+                height: 0;
+            }
 
-        .bookmark {
-            box-sizing: border-box;
+            .bookmark {
+                box-sizing: border-box;
 
-            display: flex;
+                display: flex;
 
-            align-items: center;
+                align-items: center;
 
-            flex: none;
+                flex: none;
 
-            max-width: 180px;
+                max-width: 180px;
 
-            height: 24px;
+                height: 24px;
 
-            margin-right: 2px;
+                margin-right: 2px;
 
-            padding: 0 8px;
+                padding: 0 8px;
 
-            border-radius: 6px;
+                border-radius: 6px;
 
-            color: #e8eaed;
+                color: #e8eaed;
 
-            font-size: 12px;
+                font-size: 12px;
 
-            cursor: pointer;
+                cursor: pointer;
 
-            user-select: none;
-        }
+                user-select: none;
+            }
 
-        .bookmark:hover {
-            background: #3c4043;
-        }
+            .bookmark:hover {
+                background: #3c4043;
+            }
 
-        .bookmark.dragging {
-            opacity: 0.4;
-        }
+            .bookmark.dragging {
+                opacity: 0.4;
+            }
 
-        .bookmark-icon {
-            width: 16px;
+            .bookmark-icon {
+                width: 16px;
 
-            height: 16px;
+                height: 16px;
 
-            flex: none;
+                flex: none;
 
-            margin-right: 6px;
+                margin-right: 6px;
 
-            border-radius: 3px;
+                border-radius: 3px;
 
-            object-fit: contain;
-        }
+                object-fit: contain;
+            }
 
-        /*
+            /*
             Stands in for a site with no usable icon
         */
 
-        .bookmark-letter {
-            display: flex;
+            .bookmark-letter {
+                display: flex;
 
-            align-items: center;
+                align-items: center;
 
-            justify-content: center;
+                justify-content: center;
 
-            background: #5f6368;
+                background: #5f6368;
 
-            color: #e8eaed;
+                color: #e8eaed;
 
-            font-size: 10px;
+                font-size: 10px;
 
-            text-transform: uppercase;
-        }
+                text-transform: uppercase;
+            }
 
-        .bookmark-label {
-            overflow: hidden;
+            .bookmark-label {
+                overflow: hidden;
 
-            text-overflow: ellipsis;
+                text-overflow: ellipsis;
 
-            white-space: nowrap;
-        }
+                white-space: nowrap;
+            }
 
-        .bookmark-rename {
-            width: 120px;
+            .bookmark-rename {
+                width: 120px;
 
-            height: 18px;
+                height: 18px;
 
-            margin: 0;
+                margin: 0;
 
-            border: none;
+                border: none;
 
-            border-radius: 3px;
+                border-radius: 3px;
 
-            padding: 0 4px;
+                padding: 0 4px;
 
-            font-family: inherit;
+                font-family: inherit;
 
-            font-size: 12px;
-        }
+                font-size: 12px;
+            }
 
-        /*
+            /*
             Marks where a dragged bookmark would land. Positioned rather
             than inserted, so the chips do not shift under the cursor.
         */
 
-        #bookmark-drop {
-            position: absolute;
+            #bookmark-drop {
+                position: absolute;
 
-            top: 5px;
+                top: 5px;
 
-            display: none;
+                display: none;
 
-            width: 2px;
+                width: 2px;
 
-            height: 24px;
+                height: 24px;
 
-            border-radius: 1px;
+                border-radius: 1px;
 
-            background: #8ab4f8;
+                background: #8ab4f8;
 
-            pointer-events: none;
-        }
+                pointer-events: none;
+            }
 
-        #bookmark-drop.visible {
-            display: block;
-        }
+            #bookmark-drop.visible {
+                display: block;
+            }
 
-        #bookmark-empty {
-            padding-left: 6px;
+            #bookmark-empty {
+                padding-left: 6px;
 
-            color: #9aa0a6;
+                color: #9aa0a6;
 
-            font-size: 12px;
-        }
-    </style>
-</head>
+                font-size: 12px;
+            }
+        </style>
+    </head>
 
-<body>
-<div id="bar">
-<button onclick="browserAPI.back()">←</button>
+    <body>
+        <div id="bar">
+            <button onclick="browserAPI.back()">←</button>
 
-<button onclick="browserAPI.forward()">→</button>
+            <button onclick="browserAPI.forward()">→</button>
 
-<button id="home" onclick="browserAPI.goHome()" title="Home (right-click to change)">⌂</button>
+            <button id="home" onclick="browserAPI.goHome()" title="Home (right-click to change)">
+                ⌂
+            </button>
 
-<button onclick="browserAPI.reload()">↻</button>
+            <button onclick="browserAPI.reload()">↻</button>
 
-<div id="omnibox">
-    <input id="url" placeholder="Enter website URL" />
+            <div id="omnibox">
+                <input id="url" placeholder="Enter website URL" />
 
-    <div id="url-display" class="hidden"><span id="url-scheme"></span><span id="url-host"></span><span id="url-rest"></span></div>
-</div>
+                <div id="url-display" class="hidden">
+                    <span id="url-scheme"></span><span id="url-host"></span
+                    ><span id="url-rest"></span>
+                </div>
+            </div>
 
-<button id="search-engine" title="Change search engine">▾</button>
+            <button id="search-engine" title="Change search engine">▾</button>
 
-<button id="shield" title="Ad and tracker blocking">🛡</button>
+            <button id="shield" title="Ad and tracker blocking">🛡</button>
 
-<button id="set-home" title="Set this page as the homepage">⌂+</button>
+            <button id="set-home" title="Set this page as the homepage">⌂+</button>
 
-<button id="bookmark-toggle" title="Bookmark this page">☆</button>
+            <button id="bookmark-toggle" title="Bookmark this page">☆</button>
 
-<button id="bookmark-bar-toggle" title="Show bookmarks bar">▤</button>
+            <button id="bookmark-bar-toggle" title="Show bookmarks bar">▤</button>
 
-<button id="focus-toggle" title="Focus mode">◎</button>
+            <button id="focus-toggle" title="Focus mode">⤢</button>
 
-<!-- <button id="maximise" title="Maximise window">⤢</button> -->
-</div>
+            <!-- <button id="maximise" title="Maximise window">⤢</button> -->
+        </div>
 
-<div id="bookmark-bar"><div id="bookmark-drop"></div></div>
+        <div id="bookmark-bar"><div id="bookmark-drop"></div></div>
 
-<script>
-    const urlBox = document.getElementById('url');
+        <script>
+            const urlBox = document.getElementById('url');
 
-    const urlDisplay = document.getElementById('url-display');
+            const urlDisplay = document.getElementById('url-display');
 
-    const urlScheme = document.getElementById('url-scheme');
+            const urlScheme = document.getElementById('url-scheme');
 
-    const urlHost = document.getElementById('url-host');
+            const urlHost = document.getElementById('url-host');
 
-    const urlRest = document.getElementById('url-rest');
+            const urlRest = document.getElementById('url-rest');
 
-    let currentUrl = '';
+            let currentUrl = '';
 
-    function isEditing() {
-        return document.activeElement === urlBox;
-    }
+            function isEditing() {
+                return document.activeElement === urlBox;
+            }
 
-    /*
+            /*
         Split a URL the way a browser shows it: the scheme is dropped when
         it is https, "www." is dropped, the host is emphasised, and the
         path/query/fragment are dimmed.
     */
 
-    function renderUrlDisplay(url) {
-        if (!url) {
-            urlDisplay.classList.add('hidden');
+            function renderUrlDisplay(url) {
+                if (!url) {
+                    urlDisplay.classList.add('hidden');
 
-            return;
-        }
+                    return;
+                }
 
-        let parsed = null;
+                let parsed = null;
 
-        try {
-            parsed = new URL(url);
-        } catch {
-            parsed = null;
-        }
+                try {
+                    parsed = new URL(url);
+                } catch {
+                    parsed = null;
+                }
 
-        /*
+                /*
             Anything that is not a web page (about:blank, data:, a bad
             URL) is shown verbatim rather than taken apart
         */
 
-        if (!parsed || (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')) {
-            urlScheme.textContent = '';
+                if (!parsed || (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')) {
+                    urlScheme.textContent = '';
 
-            urlScheme.className = '';
+                    urlScheme.className = '';
 
-            urlHost.textContent = url;
+                    urlHost.textContent = url;
 
-            urlRest.textContent = '';
+                    urlRest.textContent = '';
 
-            urlDisplay.classList.remove('hidden');
+                    urlDisplay.classList.remove('hidden');
 
-            return;
-        }
+                    return;
+                }
 
-        const insecure = parsed.protocol === 'http:';
+                const insecure = parsed.protocol === 'http:';
 
-        urlScheme.textContent = parsed.protocol === 'https:' ? '' : parsed.protocol + '//';
+                urlScheme.textContent = parsed.protocol === 'https:' ? '' : parsed.protocol + '//';
 
-        urlScheme.className = insecure ? 'insecure' : '';
+                urlScheme.className = insecure ? 'insecure' : '';
 
-        urlHost.textContent = parsed.host.replace(/^www\./, '');
+                urlHost.textContent = parsed.host.replace(/^www\./, '');
 
-        const rest = parsed.pathname === '/' && !parsed.search && !parsed.hash
-            ? ''
-            : parsed.pathname + parsed.search + parsed.hash;
+                const rest =
+                    parsed.pathname === '/' && !parsed.search && !parsed.hash
+                        ? ''
+                        : parsed.pathname + parsed.search + parsed.hash;
 
-        urlRest.textContent = rest;
+                urlRest.textContent = rest;
 
-        urlDisplay.classList.remove('hidden');
-    }
+                urlDisplay.classList.remove('hidden');
+            }
 
-    function showRealUrl() {
-        urlDisplay.classList.add('hidden');
+            function showRealUrl() {
+                urlDisplay.classList.add('hidden');
 
-        urlBox.value = currentUrl;
+                urlBox.value = currentUrl;
 
-        urlBox.focus();
+                urlBox.focus();
 
-        urlBox.select();
+                urlBox.select();
 
-        /*
+                /*
             select() leaves a long URL scrolled to its end; browsers
             keep the start of the URL in view
         */
 
-        urlBox.scrollLeft = 0;
-    }
+                urlBox.scrollLeft = 0;
+            }
 
-    function setCurrentUrl(url) {
-        currentUrl = url;
+            function setCurrentUrl(url) {
+                currentUrl = url;
 
-        /*
+                /*
             Never overwrite what is being typed
         */
 
-        if (isEditing()) return;
+                if (isEditing()) return;
 
-        urlBox.value = url;
+                urlBox.value = url;
 
-        renderUrlDisplay(url);
-    }
+                renderUrlDisplay(url);
+            }
 
-    /*
+            /*
         mousedown rather than click, so the caret never lands mid-text
         before the select() below runs
     */
 
-    urlDisplay.addEventListener('mousedown', (event) => {
-        event.preventDefault();
+            urlDisplay.addEventListener('mousedown', (event) => {
+                event.preventDefault();
 
-        showRealUrl();
-    });
+                showRealUrl();
+            });
 
-    urlBox.addEventListener('focus', () => {
-        urlDisplay.classList.add('hidden');
-    });
+            urlBox.addEventListener('focus', () => {
+                urlDisplay.classList.add('hidden');
+            });
 
-    /*
+            /*
         Restores the tidy display directly rather than waiting on a blur
         event, which does not arrive when the window is not focused
     */
 
-    function stopEditing() {
-        urlBox.value = currentUrl;
+            function stopEditing() {
+                urlBox.value = currentUrl;
 
-        renderUrlDisplay(currentUrl);
+                renderUrlDisplay(currentUrl);
 
-        urlBox.blur();
-    }
+                urlBox.blur();
+            }
 
-    urlBox.addEventListener('blur', () => {
-        urlBox.value = currentUrl;
+            urlBox.addEventListener('blur', () => {
+                urlBox.value = currentUrl;
 
-        renderUrlDisplay(currentUrl);
-    });
+                renderUrlDisplay(currentUrl);
+            });
 
-    urlBox.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
-            if (!urlBox.value.trim()) return;
+            urlBox.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    if (!urlBox.value.trim()) return;
 
-            /*
+                    /*
                 Sent as typed. Whether it is somewhere to go or something
                 to look up is decided in the main process, along with
                 which engine to look it up with.
             */
 
-            browserAPI.submitOmnibox(urlBox.value);
+                    browserAPI.submitOmnibox(urlBox.value);
 
-            stopEditing();
-        }
+                    stopEditing();
+                }
 
-        if (event.key === 'Escape') {
-            stopEditing();
-        }
-    });
+                if (event.key === 'Escape') {
+                    stopEditing();
+                }
+            });
 
-    /*
+            /*
         Search engine
     */
 
-    const searchEngineButton = document.getElementById('search-engine');
+            const searchEngineButton = document.getElementById('search-engine');
 
-    function engineLetterIcon(engine) {
-        const letter = document.createElement('div');
+            function engineLetterIcon(engine) {
+                const letter = document.createElement('div');
 
-        letter.id = 'search-engine-icon';
+                letter.id = 'search-engine-icon';
 
-        letter.className = 'letter';
+                letter.className = 'letter';
 
-        letter.textContent = (engine.name || '?').charAt(0);
+                letter.textContent = (engine.name || '?').charAt(0);
 
-        return letter;
-    }
+                return letter;
+            }
 
-    /*
+            /*
         The engine is shown by its own icon rather than named in the
         placeholder, so the address bar stays about what is typed there
     */
 
-    function showSearchEngine(engine) {
-        if (!engine) return;
+            function showSearchEngine(engine) {
+                if (!engine) return;
 
-        searchEngineButton.textContent = '';
+                searchEngineButton.textContent = '';
 
-        if (engine.icon) {
-            const icon = document.createElement('img');
+                if (engine.icon) {
+                    const icon = document.createElement('img');
 
-            icon.id = 'search-engine-icon';
+                    icon.id = 'search-engine-icon';
 
-            icon.src = engine.icon;
+                    icon.src = engine.icon;
 
-            icon.addEventListener('error', () => {
-                icon.replaceWith(engineLetterIcon(engine));
+                    icon.addEventListener('error', () => {
+                        icon.replaceWith(engineLetterIcon(engine));
+                    });
+
+                    searchEngineButton.appendChild(icon);
+                } else {
+                    searchEngineButton.appendChild(engineLetterIcon(engine));
+                }
+
+                const caret = document.createElement('span');
+
+                caret.textContent = '▾';
+
+                searchEngineButton.appendChild(caret);
+
+                urlBox.placeholder = 'Search or enter a URL';
+
+                searchEngineButton.title = 'Searching with ' + engine.name + ' — click to change';
+            }
+
+            searchEngineButton.addEventListener('click', () => {
+                browserAPI.showSearchMenu();
             });
 
-            searchEngineButton.appendChild(icon);
-        } else {
-            searchEngineButton.appendChild(engineLetterIcon(engine));
-        }
+            urlBox.addEventListener('contextmenu', (event) => {
+                event.preventDefault();
 
-        const caret = document.createElement('span');
+                browserAPI.showSearchMenu();
+            });
 
-        caret.textContent = '▾';
+            urlDisplay.addEventListener('contextmenu', (event) => {
+                event.preventDefault();
 
-        searchEngineButton.appendChild(caret);
+                browserAPI.showSearchMenu();
+            });
 
-        urlBox.placeholder = 'Search or enter a URL';
+            browserAPI.onSearchEngineChange(showSearchEngine);
 
-        searchEngineButton.title = 'Searching with ' + engine.name + ' — click to change';
-    }
-
-    searchEngineButton.addEventListener('click', () => {
-        browserAPI.showSearchMenu();
-    });
-
-    urlBox.addEventListener('contextmenu', (event) => {
-        event.preventDefault();
-
-        browserAPI.showSearchMenu();
-    });
-
-    urlDisplay.addEventListener('contextmenu', (event) => {
-        event.preventDefault();
-
-        browserAPI.showSearchMenu();
-    });
-
-    browserAPI.onSearchEngineChange(showSearchEngine);
-
-    browserAPI
-        .getSearchEngine()
-        .then(showSearchEngine)
-        .catch(() => {
-            /*
+            browserAPI
+                .getSearchEngine()
+                .then(showSearchEngine)
+                .catch(() => {
+                    /*
                 Asked before the main process was listening
             */
-        });
+                });
 
-    document.getElementById('home').addEventListener('contextmenu', (event) => {
-        event.preventDefault();
+            document.getElementById('home').addEventListener('contextmenu', (event) => {
+                event.preventDefault();
 
-        browserAPI.showHomeMenu();
-    });
+                browserAPI.showHomeMenu();
+            });
 
-    /*
+            /*
         Shield
     */
 
-    const shieldButton = document.getElementById('shield');
+            const shieldButton = document.getElementById('shield');
 
-    function renderShield(state) {
-        shieldButton.textContent = '🛡';
+            function renderShield(state) {
+                shieldButton.textContent = '🛡';
 
-        shieldButton.classList.toggle('off', !state.blocking);
+                shieldButton.classList.toggle('off', !state.blocking);
 
-        if (state.blocking && state.blocked > 0) {
-            const count = document.createElement('span');
+                if (state.blocking && state.blocked > 0) {
+                    const count = document.createElement('span');
 
-            count.className = 'count';
+                    count.className = 'count';
 
-            count.textContent = String(state.blocked);
+                    count.textContent = String(state.blocked);
 
-            shieldButton.appendChild(count);
-        }
+                    shieldButton.appendChild(count);
+                }
 
-        if (!state.ready) {
-            /*
+                if (!state.ready) {
+                    /*
                 Says so plainly when the lists could not be fetched,
                 rather than looking like blocking is on
             */
 
-            shieldButton.title = state.status === 'unavailable'
-                ? 'Ad blocker could not load its filter lists — retrying'
-                : 'Ad blocker still loading its filter lists';
+                    shieldButton.title =
+                        state.status === 'unavailable'
+                            ? 'Ad blocker could not load its filter lists — retrying'
+                            : 'Ad blocker still loading its filter lists';
 
-            return;
-        }
+                    return;
+                }
 
-        const site = state.host || 'this site';
+                const site = state.host || 'this site';
 
-        shieldButton.title = state.blocking
-            ? state.blocked + ' blocked on this page — click to turn blocking off for ' + site
-            : 'Blocking is off for ' + site + ' — click to turn it back on';
-    }
+                shieldButton.title = state.blocking
+                    ? state.blocked +
+                      ' blocked on this page — click to turn blocking off for ' +
+                      site
+                    : 'Blocking is off for ' + site + ' — click to turn it back on';
+            }
 
-    shieldButton.addEventListener('click', () => {
-        browserAPI.toggleShieldForSite().then(renderShield);
-    });
+            shieldButton.addEventListener('click', () => {
+                browserAPI.toggleShieldForSite().then(renderShield);
+            });
 
-    browserAPI.onShieldState(renderShield);
+            browserAPI.onShieldState(renderShield);
 
-    browserAPI
-        .getShieldState()
-        .then(renderShield)
-        .catch(() => {
-            /*
+            browserAPI
+                .getShieldState()
+                .then(renderShield)
+                .catch(() => {
+                    /*
                 Asked before the main process was listening
             */
-        });
+                });
 
-    const setHomeButton = document.getElementById('set-home');
+            const setHomeButton = document.getElementById('set-home');
 
-    const SET_HOME_GLYPH = setHomeButton.textContent;
+            const SET_HOME_GLYPH = setHomeButton.textContent;
 
-    let confirmTimer = null;
+            let confirmTimer = null;
 
-    setHomeButton.addEventListener('click', () => {
-        browserAPI.setHomeToCurrentPage().then((url) => {
-            /*
+            setHomeButton.addEventListener('click', () => {
+                browserAPI.setHomeToCurrentPage().then((url) => {
+                    /*
                 Nothing to pin on a page that is not a web page
             */
 
-            if (!url) return;
+                    if (!url) return;
 
-            setHomeButton.textContent = '✓';
+                    setHomeButton.textContent = '✓';
 
-            setHomeButton.classList.add('confirmed');
+                    setHomeButton.classList.add('confirmed');
 
-            setHomeButton.title = 'Homepage is now ' + url;
+                    setHomeButton.title = 'Homepage is now ' + url;
 
-            /*
+                    /*
                 Restored from the glyph captured at startup, so clicking
                 again mid-confirmation cannot make the tick stick
             */
 
-            clearTimeout(confirmTimer);
+                    clearTimeout(confirmTimer);
 
-            confirmTimer = setTimeout(() => {
-                setHomeButton.textContent = SET_HOME_GLYPH;
+                    confirmTimer = setTimeout(() => {
+                        setHomeButton.textContent = SET_HOME_GLYPH;
 
-                setHomeButton.classList.remove('confirmed');
+                        setHomeButton.classList.remove('confirmed');
 
-                setHomeButton.title = 'Set this page as the homepage';
-            }, 1400);
-        });
-    });
+                        setHomeButton.title = 'Set this page as the homepage';
+                    }, 1400);
+                });
+            });
 
-    browserAPI.onURLChange((url) => {
-        setCurrentUrl(url);
+            browserAPI.onURLChange((url) => {
+                setCurrentUrl(url);
 
-        refreshBookmarks();
-    });
+                refreshBookmarks();
+            });
 
-    browserAPI.onLoading((loading) => {
-        if (loading) {
-            document.title = 'Loading...';
-        } else {
-            document.title = 'WebDesk';
-        }
-    });
+            browserAPI.onLoading((loading) => {
+                if (loading) {
+                    document.title = 'Loading...';
+                } else {
+                    document.title = 'WebDesk';
+                }
+            });
 
-    /*
+            /*
         Bookmarks
     */
 
-    const bookmarkToggle = document.getElementById('bookmark-toggle');
+            const bookmarkToggle = document.getElementById('bookmark-toggle');
 
-    const bookmarkBarToggle = document.getElementById('bookmark-bar-toggle');
+            const bookmarkBarToggle = document.getElementById('bookmark-bar-toggle');
 
-    const bookmarkBar = document.getElementById('bookmark-bar');
+            const bookmarkBar = document.getElementById('bookmark-bar');
 
-    const dropIndicator = document.getElementById('bookmark-drop');
+            const dropIndicator = document.getElementById('bookmark-drop');
 
-    const BAR_SHORTCUT = navigator.userAgent.includes('Mac') ? '⌘⇧B' : 'Ctrl+Shift+B';
+            const BAR_SHORTCUT = navigator.userAgent.includes('Mac') ? '⌘⇧B' : 'Ctrl+Shift+B';
 
-    let bookmarks = [];
+            let bookmarks = [];
 
-    let barVisible = true;
+            let barVisible = true;
 
-    /*
+            /*
         Set for the length of a drag, so the bar ignores anything
         dragged into it from elsewhere
     */
 
-    let dragUrl = '';
+            let dragUrl = '';
 
-    let dropIndex = -1;
+            let dropIndex = -1;
 
-    function renderBookmarks(state) {
-        bookmarks = state.bookmarks;
+            function renderBookmarks(state) {
+                bookmarks = state.bookmarks;
 
-        barVisible = state.barVisible !== false;
+                barVisible = state.barVisible !== false;
 
-        bookmarkToggle.textContent = state.bookmarked ? '★' : '☆';
+                bookmarkToggle.textContent = state.bookmarked ? '★' : '☆';
 
-        bookmarkToggle.classList.toggle('saved', state.bookmarked);
+                bookmarkToggle.classList.toggle('saved', state.bookmarked);
 
-        bookmarkBarToggle.classList.toggle('on', barVisible);
+                bookmarkBarToggle.classList.toggle('on', barVisible);
 
-        bookmarkBarToggle.title =
-            (barVisible ? 'Hide' : 'Show') + ' bookmarks bar (' + BAR_SHORTCUT + ')';
+                bookmarkBarToggle.title =
+                    (barVisible ? 'Hide' : 'Show') + ' bookmarks bar (' + BAR_SHORTCUT + ')';
 
-        bookmarkBar.classList.toggle('visible', barVisible);
+                bookmarkBar.classList.toggle('visible', barVisible);
 
-        bookmarkBar.textContent = '';
+                bookmarkBar.textContent = '';
 
-        /*
+                /*
             Cleared along with the chips, so it is put back rather
             than rebuilt
         */
 
-        bookmarkBar.appendChild(dropIndicator);
+                bookmarkBar.appendChild(dropIndicator);
 
-        if (bookmarks.length === 0) {
-            const empty = document.createElement('div');
+                if (bookmarks.length === 0) {
+                    const empty = document.createElement('div');
 
-            empty.id = 'bookmark-empty';
+                    empty.id = 'bookmark-empty';
 
-            empty.textContent = 'Bookmarks you add with ☆ will appear here.';
+                    empty.textContent = 'Bookmarks you add with ☆ will appear here.';
 
-            bookmarkBar.appendChild(empty);
-        }
+                    bookmarkBar.appendChild(empty);
+                }
 
-        bookmarks.forEach((bookmark) => {
-            bookmarkBar.appendChild(createChip(bookmark));
-        });
+                bookmarks.forEach((bookmark) => {
+                    bookmarkBar.appendChild(createChip(bookmark));
+                });
 
-        syncToolbarHeight();
-    }
+                syncToolbarHeight();
+            }
 
-    function createChip(bookmark) {
-        const chip = document.createElement('div');
+            function createChip(bookmark) {
+                const chip = document.createElement('div');
 
-        chip.className = 'bookmark';
+                chip.className = 'bookmark';
 
-        chip.title = bookmark.title + '\n' + bookmark.url;
+                chip.title = bookmark.title + '\n' + bookmark.url;
 
-        chip.draggable = true;
+                chip.draggable = true;
 
-        chip.dataset.url = bookmark.url;
+                chip.dataset.url = bookmark.url;
 
-        chip.appendChild(createIcon(bookmark));
+                chip.appendChild(createIcon(bookmark));
 
-        const label = document.createElement('span');
+                const label = document.createElement('span');
 
-        label.className = 'bookmark-label';
+                label.className = 'bookmark-label';
 
-        label.textContent = bookmark.title;
+                label.textContent = bookmark.title;
 
-        chip.appendChild(label);
+                chip.appendChild(label);
 
-        chip.addEventListener('click', () => {
-            browserAPI.openBookmark(bookmark.url);
-        });
+                chip.addEventListener('click', () => {
+                    browserAPI.openBookmark(bookmark.url);
+                });
 
-        chip.addEventListener('contextmenu', (event) => {
-            event.preventDefault();
+                chip.addEventListener('contextmenu', (event) => {
+                    event.preventDefault();
 
-            browserAPI.showBookmarkMenu(bookmark.url);
-        });
+                    browserAPI.showBookmarkMenu(bookmark.url);
+                });
 
-        chip.addEventListener('dragstart', (event) => {
-            dragUrl = bookmark.url;
+                chip.addEventListener('dragstart', (event) => {
+                    dragUrl = bookmark.url;
 
-            event.dataTransfer.effectAllowed = 'move';
+                    event.dataTransfer.effectAllowed = 'move';
 
-            /*
+                    /*
                 The drag has to carry something before dragover fires
             */
 
-            event.dataTransfer.setData('text/plain', bookmark.url);
+                    event.dataTransfer.setData('text/plain', bookmark.url);
 
-            chip.classList.add('dragging');
-        });
+                    chip.classList.add('dragging');
+                });
 
-        chip.addEventListener('dragend', () => {
-            chip.classList.remove('dragging');
+                chip.addEventListener('dragend', () => {
+                    chip.classList.remove('dragging');
 
-            hideDropIndicator();
+                    hideDropIndicator();
 
-            dragUrl = '';
-        });
+                    dragUrl = '';
+                });
 
-        return chip;
-    }
+                return chip;
+            }
 
-    function createIcon(bookmark) {
-        if (!bookmark.favicon) {
-            return createLetterIcon(bookmark);
-        }
+            function createIcon(bookmark) {
+                if (!bookmark.favicon) {
+                    return createLetterIcon(bookmark);
+                }
 
-        const icon = document.createElement('img');
+                const icon = document.createElement('img');
 
-        icon.className = 'bookmark-icon';
+                icon.className = 'bookmark-icon';
 
-        icon.src = bookmark.favicon;
+                icon.src = bookmark.favicon;
 
-        /*
+                /*
             A site whose icon has moved or is blocked falls back to the
             lettered square rather than showing a broken image
         */
 
-        icon.addEventListener('error', () => {
-            icon.replaceWith(createLetterIcon(bookmark));
-        });
+                icon.addEventListener('error', () => {
+                    icon.replaceWith(createLetterIcon(bookmark));
+                });
 
-        return icon;
-    }
+                return icon;
+            }
 
-    function createLetterIcon(bookmark) {
-        const icon = document.createElement('div');
+            function createLetterIcon(bookmark) {
+                const icon = document.createElement('div');
 
-        icon.className = 'bookmark-icon bookmark-letter';
+                icon.className = 'bookmark-icon bookmark-letter';
 
-        try {
-            icon.textContent = new URL(bookmark.url).hostname.replace(/^www\./, '').charAt(0);
-        } catch {
-            icon.textContent = (bookmark.title || '?').charAt(0);
-        }
+                try {
+                    icon.textContent = new URL(bookmark.url).hostname
+                        .replace(/^www\./, '')
+                        .charAt(0);
+                } catch {
+                    icon.textContent = (bookmark.title || '?').charAt(0);
+                }
 
-        return icon;
-    }
+                return icon;
+            }
 
-    /*
+            /*
         Renaming is done in the bar itself, since the native context
         menu that starts it cannot hold a text field
     */
 
-    function startRename(url) {
-        const chip = Array.from(bookmarkBar.querySelectorAll('.bookmark'))
-            .find((candidate) => candidate.dataset.url === url);
+            function startRename(url) {
+                const chip = Array.from(bookmarkBar.querySelectorAll('.bookmark')).find(
+                    (candidate) => candidate.dataset.url === url
+                );
 
-        if (!chip) return;
+                if (!chip) return;
 
-        const label = chip.querySelector('.bookmark-label');
+                const label = chip.querySelector('.bookmark-label');
 
-        const input = document.createElement('input');
+                const input = document.createElement('input');
 
-        input.className = 'bookmark-rename';
+                input.className = 'bookmark-rename';
 
-        input.value = label.textContent;
+                input.value = label.textContent;
 
-        chip.draggable = false;
+                chip.draggable = false;
 
-        label.replaceWith(input);
+                label.replaceWith(input);
 
-        input.focus();
+                input.focus();
 
-        input.select();
+                input.select();
 
-        let finished = false;
+                let finished = false;
 
-        function finish(commit) {
-            if (finished) return;
+                function finish(commit) {
+                    if (finished) return;
 
-            finished = true;
+                    finished = true;
 
-            if (commit && input.value.trim()) {
-                browserAPI.renameBookmark(url, input.value).then(applyState);
-            } else {
-                refreshBookmarks();
-            }
-        }
+                    if (commit && input.value.trim()) {
+                        browserAPI.renameBookmark(url, input.value).then(applyState);
+                    } else {
+                        refreshBookmarks();
+                    }
+                }
 
-        /*
+                /*
             Clicking the field would otherwise open the bookmark
         */
 
-        input.addEventListener('mousedown', (event) => {
-            event.stopPropagation();
-        });
+                input.addEventListener('mousedown', (event) => {
+                    event.stopPropagation();
+                });
 
-        input.addEventListener('click', (event) => {
-            event.stopPropagation();
-        });
+                input.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                });
 
-        input.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter') {
-                finish(true);
+                input.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter') {
+                        finish(true);
+                    }
+
+                    if (event.key === 'Escape') {
+                        finish(false);
+                    }
+                });
+
+                input.addEventListener('blur', () => {
+                    finish(true);
+                });
             }
 
-            if (event.key === 'Escape') {
-                finish(false);
-            }
-        });
-
-        input.addEventListener('blur', () => {
-            finish(true);
-        });
-    }
-
-    /*
+            /*
         The gap the dragged bookmark would fall into, from which chip
         centres the cursor has passed
     */
 
-    function insertIndexFor(clientX) {
-        const chips = bookmarkBar.querySelectorAll('.bookmark');
+            function insertIndexFor(clientX) {
+                const chips = bookmarkBar.querySelectorAll('.bookmark');
 
-        for (let index = 0; index < chips.length; index += 1) {
-            const box = chips[index].getBoundingClientRect();
+                for (let index = 0; index < chips.length; index += 1) {
+                    const box = chips[index].getBoundingClientRect();
 
-            if (clientX < box.left + box.width / 2) {
-                return index;
+                    if (clientX < box.left + box.width / 2) {
+                        return index;
+                    }
+                }
+
+                return chips.length;
             }
-        }
 
-        return chips.length;
-    }
+            function showDropIndicator(index) {
+                const chips = bookmarkBar.querySelectorAll('.bookmark');
 
-    function showDropIndicator(index) {
-        const chips = bookmarkBar.querySelectorAll('.bookmark');
+                if (chips.length === 0) return;
 
-        if (chips.length === 0) return;
+                const last = chips[chips.length - 1];
 
-        const last = chips[chips.length - 1];
+                dropIndicator.style.left =
+                    index < chips.length
+                        ? chips[index].offsetLeft - 2 + 'px'
+                        : last.offsetLeft + last.offsetWidth + 'px';
 
-        dropIndicator.style.left = index < chips.length
-            ? chips[index].offsetLeft - 2 + 'px'
-            : last.offsetLeft + last.offsetWidth + 'px';
+                dropIndicator.classList.add('visible');
+            }
 
-        dropIndicator.classList.add('visible');
-    }
+            function hideDropIndicator() {
+                dropIndicator.classList.remove('visible');
 
-    function hideDropIndicator() {
-        dropIndicator.classList.remove('visible');
+                dropIndex = -1;
+            }
 
-        dropIndex = -1;
-    }
+            bookmarkBar.addEventListener('dragover', (event) => {
+                if (!dragUrl) return;
 
-    bookmarkBar.addEventListener('dragover', (event) => {
-        if (!dragUrl) return;
+                event.preventDefault();
 
-        event.preventDefault();
+                event.dataTransfer.dropEffect = 'move';
 
-        event.dataTransfer.dropEffect = 'move';
+                dropIndex = insertIndexFor(event.clientX);
 
-        dropIndex = insertIndexFor(event.clientX);
+                showDropIndicator(dropIndex);
+            });
 
-        showDropIndicator(dropIndex);
-    });
+            bookmarkBar.addEventListener('dragleave', (event) => {
+                if (event.target === bookmarkBar) {
+                    hideDropIndicator();
+                }
+            });
 
-    bookmarkBar.addEventListener('dragleave', (event) => {
-        if (event.target === bookmarkBar) {
-            hideDropIndicator();
-        }
-    });
+            bookmarkBar.addEventListener('drop', (event) => {
+                if (!dragUrl || dropIndex === -1) return;
 
-    bookmarkBar.addEventListener('drop', (event) => {
-        if (!dragUrl || dropIndex === -1) return;
+                event.preventDefault();
 
-        event.preventDefault();
+                const from = bookmarks.findIndex((bookmark) => bookmark.url === dragUrl);
 
-        const from = bookmarks.findIndex((bookmark) => bookmark.url === dragUrl);
-
-        /*
+                /*
             Where it lands once it has been lifted out of the bar, which
             is one place to the left when it moves rightwards
         */
 
-        const target = dropIndex > from ? dropIndex - 1 : dropIndex;
+                const target = dropIndex > from ? dropIndex - 1 : dropIndex;
 
-        hideDropIndicator();
+                hideDropIndicator();
 
-        if (from !== -1 && target !== from) {
-            browserAPI.moveBookmark(dragUrl, target).then(applyState);
-        }
-    });
+                if (from !== -1 && target !== from) {
+                    browserAPI.moveBookmark(dragUrl, target).then(applyState);
+                }
+            });
 
-    function applyState(state) {
-        renderBookmarks(state);
-    }
+            function applyState(state) {
+                renderBookmarks(state);
+            }
 
-    function refreshBookmarks() {
-        browserAPI
-            .getBookmarkState()
-            .then(applyState)
-            .catch(() => {
-                /*
+            function refreshBookmarks() {
+                browserAPI
+                    .getBookmarkState()
+                    .then(applyState)
+                    .catch(() => {
+                        /*
                     Asked before the main process was listening
                 */
-            });
-    }
+                    });
+            }
 
-    /*
+            /*
         The BrowserView sits on top of this page, so the bar is only
         visible if the view is pushed down to make room for it
     */
 
-    function syncToolbarHeight() {
-        const barHeight = document.getElementById('bar').offsetHeight;
+            function syncToolbarHeight() {
+                const barHeight = document.getElementById('bar').offsetHeight;
 
-        browserAPI.setToolbarHeight(barHeight + (barVisible ? bookmarkBar.offsetHeight : 0));
-    }
+                browserAPI.setToolbarHeight(
+                    barHeight + (barVisible ? bookmarkBar.offsetHeight : 0)
+                );
+            }
 
-    bookmarkToggle.addEventListener('click', () => {
-        browserAPI.toggleBookmark().then(applyState);
-    });
+            bookmarkToggle.addEventListener('click', () => {
+                browserAPI.toggleBookmark().then(applyState);
+            });
 
-    bookmarkBarToggle.addEventListener('click', () => {
-        browserAPI.setBookmarkBarVisible(!barVisible).then(applyState);
-    });
+            bookmarkBarToggle.addEventListener('click', () => {
+                browserAPI.setBookmarkBarVisible(!barVisible).then(applyState);
+            });
 
-    /*
+            /*
         Deleting from the context menu and the bar's shortcut both act
         in the main process, which pushes the new state back here
     */
 
-    browserAPI.onBookmarkState(applyState);
+            browserAPI.onBookmarkState(applyState);
 
-    browserAPI.onBookmarkRename(startRename);
+            browserAPI.onBookmarkRename(startRename);
 
-    refreshBookmarks();
+            refreshBookmarks();
 
-    /*
+            /*
         Focus mode
     */
 
-    const focusToggle = document.getElementById('focus-toggle');
+            const focusToggle = document.getElementById('focus-toggle');
 
-    function showFocusMode(active) {
-        focusToggle.textContent = active ? '◉' : '◎';
+            function showFocusMode(active) {
+                focusToggle.textContent = active ? '⤡' : '⤢'; /*'◉' : '◎';*/
 
-        focusToggle.classList.toggle('on', active);
+                focusToggle.classList.toggle('on', active);
 
-        focusToggle.title = active
-            ? 'Leave focus mode (⌘⇧F)'
-            : 'Focus mode — fill the screen and stay on top (⌘⇧F)';
-    }
+                focusToggle.title = active
+                    ? 'Leave focus mode (⌘⇧F)'
+                    : 'Focus mode — fill the screen and stay on top (⌘⇧F)';
+            }
 
-    focusToggle.addEventListener('click', () => {
-        browserAPI.toggleFocusMode().then(showFocusMode);
-    });
+            focusToggle.addEventListener('click', () => {
+                browserAPI.toggleFocusMode().then(showFocusMode);
+            });
 
-    /*
+            /*
         The shortcut works from inside the page too, so the button is
         told rather than assuming it is the only way in or out
     */
 
-    browserAPI.onFocusModeChange(showFocusMode);
+            browserAPI.onFocusModeChange(showFocusMode);
 
-    showFocusMode(false);
+            showFocusMode(false);
 
-    /*
+            /*
         Maximise
     */
 
-    const maximiseButton = document.getElementById('maximise');
+            const maximiseButton = document.getElementById('maximise');
 
-    function showMaximised(maximised) {
-        maximiseButton.textContent = maximised ? '⤡' : '⤢';
+            function showMaximised(maximised) {
+                maximiseButton.textContent = maximised ? '⤡' : '⤢';
 
-        maximiseButton.title = maximised ? 'Restore window' : 'Maximise window';
-    }
+                maximiseButton.title = maximised ? 'Restore window' : 'Maximise window';
+            }
 
-    maximiseButton.addEventListener('click', () => {
-        browserAPI.toggleMaximise().then(showMaximised);
-    });
+            maximiseButton.addEventListener('click', () => {
+                browserAPI.toggleMaximise().then(showMaximised);
+            });
 
-    /*
+            /*
         The window can also be maximised from its own title bar, so the
         icon follows the window rather than only its own clicks
     */
 
-    browserAPI.onMaximiseChange(showMaximised);
+            browserAPI.onMaximiseChange(showMaximised);
 
-    browserAPI
-        .isMaximised()
-        .then(showMaximised)
-        .catch(() => {
-            /*
+            browserAPI
+                .isMaximised()
+                .then(showMaximised)
+                .catch(() => {
+                    /*
                 Asked before the main process was listening
             */
-        });
-
-</script>
-</body>
+                });
+        </script>
+    </body>
 </html>
