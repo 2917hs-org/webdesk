@@ -1,6 +1,6 @@
 const { BrowserView, ipcMain, BrowserWindow, Menu } = require('electron');
 
-const { getWebsiteUrl, setWebsiteUrl, isTimerDomain } = require('../config/appConfig');
+const { getWebsiteUrl, setWebsiteUrl } = require('../config/appConfig');
 
 const bookmarkStore = require('../bookmarks/bookmarkStore');
 
@@ -130,14 +130,10 @@ function registerNavigationEvents() {
         sendToToolbar('url-change', url);
 
         sendToToolbar('shield-state', shieldState());
-
-        sendToToolbar('timer-availability', isTimerDomain(url));
     });
 
     browserView.webContents.on('did-navigate-in-page', (_, url) => {
         sendToToolbar('url-change', url);
-
-        sendToToolbar('timer-availability', isTimerDomain(url));
     });
 
     /*
@@ -303,14 +299,6 @@ function registerToolbarEvents(window) {
 
     ipcMain.handle('get-search-engine', () => searchEngines.describeActive());
 
-    ipcMain.removeHandler('get-timer-availability');
-
-    ipcMain.handle('get-timer-availability', () => {
-        if (!browserView) return false;
-
-        return isTimerDomain(browserView.webContents.getURL());
-    });
-
     /*
         Pins the page in view as the homepage in one click, so the
         setup window is only needed for the initial choice
@@ -336,13 +324,44 @@ function registerToolbarEvents(window) {
         resizeBrowserView(window);
     });
 
-    ipcMain.removeHandler('start-focus-mode');
+    ipcMain.removeHandler('toggle-focus-mode');
 
-    ipcMain.handle('start-focus-mode', () => focusMode.enterFocusMode());
+    ipcMain.handle('toggle-focus-mode', () =>
+        (focusMode.isActive() ? focusMode.exitFocusMode() : focusMode.enterFocusMode()));
 
-    ipcMain.removeHandler('stop-focus-mode');
+    /*
+        The same thing the green button does: fill the screen, and give
+        the previous size back on the way out
+    */
 
-    ipcMain.handle('stop-focus-mode', () => focusMode.exitFocusMode());
+    ipcMain.removeHandler('toggle-maximise');
+
+    ipcMain.handle('toggle-maximise', () => {
+        if (window.isMaximized()) {
+            window.unmaximize();
+        } else {
+            window.maximize();
+        }
+
+        return window.isMaximized();
+    });
+
+    ipcMain.removeHandler('is-maximised');
+
+    ipcMain.handle('is-maximised', () => window.isMaximized());
+
+    /*
+        The title bar can maximise the window too, so the toolbar is
+        told rather than left to guess from its own clicks
+    */
+
+    window.removeAllListeners('maximize');
+
+    window.removeAllListeners('unmaximize');
+
+    window.on('maximize', () => sendToToolbar('maximise-changed', true));
+
+    window.on('unmaximize', () => sendToToolbar('maximise-changed', false));
 
     ipcMain.removeHandler('get-shield-state');
 
@@ -509,10 +528,14 @@ function registerShortcuts(window) {
             on the timed sites use it.
         */
 
-        if (key === 'f' && focusMode.isActive()) {
+        if (key === 'f') {
             event.preventDefault();
 
-            focusMode.exitFocusMode();
+            if (focusMode.isActive()) {
+                focusMode.exitFocusMode();
+            } else {
+                focusMode.enterFocusMode();
+            }
         }
     };
 

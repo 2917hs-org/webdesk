@@ -208,107 +208,25 @@
         }
 
         /*
-            Timer occupies the free space on the right
+            Focus mode and window controls
         */
 
-        #timer {
-            display: flex;
-
-            align-items: center;
-
-            margin-left: auto;
-
-            margin-right: 10px;
-        }
-
-        /*
-            Hidden unless the current site is a configured timer domain
-        */
-
-        #timer.unavailable {
-            display: none;
-        }
-
-        select {
-            height: 30px;
-
-            border: none;
-
-            border-radius: 6px;
-
-            background: #303134;
-
-            color: white;
-
-            font-size: 13px;
-
-            padding-left: 6px;
-
-            cursor: pointer;
-        }
-
-        #timer-start {
-            width: 56px;
-
-            font-size: 13px;
-        }
-
-        #timer-start.active {
+        #focus-toggle.on {
             background: #8ab4f8;
 
             color: #202124;
         }
 
-        #timer-display {
-            width: 62px;
-
-            height: 28px;
-
-            margin-left: 10px;
-
-            display: flex;
-
-            align-items: center;
-
-            justify-content: center;
-
-            border: 2px solid #303134;
-
-            border-radius: 6px;
-
-            background: #303134;
-
-            color: #9aa0a6;
-
-            font-size: 14px;
-
-            font-variant-numeric: tabular-nums;
-        }
-
-        #timer-display.running {
-            color: white;
-        }
-
         /*
-            Final 25% of the countdown
+            Pushed to the far right, away from the page controls
         */
 
-        #timer-display.warning {
-            border-color: #ea4335;
+        #maximise {
+            margin-left: auto;
 
-            color: #ea4335;
-        }
+            margin-right: 10px;
 
-        #timer-stop {
-            margin-left: 8px;
-
-            font-size: 14px;
-
-            visibility: hidden;
-        }
-
-        #timer-stop.visible {
-            visibility: visible;
+            font-size: 13px;
         }
 
         /*
@@ -565,23 +483,9 @@
 
 <button id="bookmark-bar-toggle" title="Show bookmarks bar">▤</button>
 
-<div id="timer" class="unavailable">
-    <select id="timer-minutes" title="Timer duration">
-        <option value="15">15 min</option>
+<button id="focus-toggle" title="Focus mode">◎</button>
 
-        <option value="30">30 min</option>
-
-        <option value="45">45 min</option>
-
-        <option value="60">60 min</option>
-    </select>
-
-    <button id="timer-start">Start</button>
-
-    <div id="timer-display">00:00</div>
-
-    <button id="timer-stop" title="Stop timer">×</button>
-</div>
+<button id="maximise" title="Maximise window">⤢</button>
 </div>
 
 <div id="bookmark-bar"><div id="bookmark-drop"></div></div>
@@ -1294,156 +1198,66 @@
     refreshBookmarks();
 
     /*
-        Countdown timer
+        Focus mode
     */
 
-    const WARNING_RATIO = 0.75;
+    const focusToggle = document.getElementById('focus-toggle');
 
-    const timerPanel = document.getElementById('timer');
+    function showFocusMode(active) {
+        focusToggle.textContent = active ? '◉' : '◎';
 
-    const minutesSelect = document.getElementById('timer-minutes');
+        focusToggle.classList.toggle('on', active);
 
-    const startButton = document.getElementById('timer-start');
-
-    const display = document.getElementById('timer-display');
-
-    const stopButton = document.getElementById('timer-stop');
-
-    let deadline = null;
-
-    let totalMs = 0;
-
-    let ticker = null;
-
-    function formatRemaining(remainingMs) {
-        const totalSeconds = Math.ceil(remainingMs / 1000);
-
-        const minutes = Math.floor(totalSeconds / 60);
-
-        const seconds = totalSeconds % 60;
-
-        return String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+        focusToggle.title = active
+            ? 'Leave focus mode (⌘⇧F)'
+            : 'Focus mode — fill the screen and stay on top (⌘⇧F)';
     }
 
-    function render() {
-        const remaining = Math.max(0, deadline - Date.now());
-
-        display.textContent = formatRemaining(remaining);
-
-        /*
-            Red border once 75% of the total time has elapsed
-        */
-
-        display.classList.toggle('warning', remaining <= totalMs * (1 - WARNING_RATIO));
-
-        if (remaining === 0) {
-            finishTimer();
-        }
-    }
-
-    function startTimer(minutes) {
-        clearInterval(ticker);
-
-        totalMs = minutes * 60 * 1000;
-
-        deadline = Date.now() + totalMs;
-
-        startButton.classList.add('active');
-
-        startButton.textContent = 'Restart';
-
-        display.classList.add('running');
-
-        stopButton.classList.add('visible');
-
-        render();
-
-        /*
-            Sub-second tick so the seconds never appear to skip
-        */
-
-        ticker = setInterval(render, 250);
-
-        /*
-            Fills the screen and stays above everything else for the
-            length of the countdown
-        */
-
-        browserAPI.startFocusMode();
-    }
-
-    /*
-        Reached both when the countdown runs out and when it is stopped
-        by hand, so focus mode is released either way
-    */
-
-    function finishTimer() {
-        clearInterval(ticker);
-
-        ticker = null;
-
-        startButton.classList.remove('active');
-
-        startButton.textContent = 'Start';
-
-        browserAPI.stopFocusMode();
-    }
-
-    function resetTimer() {
-        finishTimer();
-
-        deadline = null;
-
-        totalMs = 0;
-
-        display.textContent = '00:00';
-
-        display.classList.remove('running', 'warning');
-
-        stopButton.classList.remove('visible');
-    }
-
-    startButton.addEventListener('click', () => {
-        startTimer(Number(minutesSelect.value));
-    });
-
-    stopButton.addEventListener('click', resetTimer);
-
-    /*
-        Leaving focus mode by its shortcut ends the countdown too, so
-        the two never disagree about whether a session is running
-    */
-
-    browserAPI.onFocusModeChange((active) => {
-        if (!active && ticker !== null) {
-            resetTimer();
-        }
+    focusToggle.addEventListener('click', () => {
+        browserAPI.toggleFocusMode().then(showFocusMode);
     });
 
     /*
-        The timer is only offered on the domains listed in settings.
-
-        A running countdown is kept alive while off-domain, so leaving
-        the site and coming back does not lose the remaining time.
+        The shortcut works from inside the page too, so the button is
+        told rather than assuming it is the only way in or out
     */
 
-    function setTimerAvailability(enabled) {
-        timerPanel.classList.toggle('unavailable', !enabled);
+    browserAPI.onFocusModeChange(showFocusMode);
+
+    showFocusMode(false);
+
+    /*
+        Maximise
+    */
+
+    const maximiseButton = document.getElementById('maximise');
+
+    function showMaximised(maximised) {
+        maximiseButton.textContent = maximised ? '⤡' : '⤢';
+
+        maximiseButton.title = maximised ? 'Restore window' : 'Maximise window';
     }
 
-    browserAPI.onTimerAvailability(setTimerAvailability);
+    maximiseButton.addEventListener('click', () => {
+        browserAPI.toggleMaximise().then(showMaximised);
+    });
+
+    /*
+        The window can also be maximised from its own title bar, so the
+        icon follows the window rather than only its own clicks
+    */
+
+    browserAPI.onMaximiseChange(showMaximised);
 
     browserAPI
-        .getTimerAvailability()
-        .then(setTimerAvailability)
+        .isMaximised()
+        .then(showMaximised)
         .catch(() => {
             /*
-                Asked before the main process was listening. Stay hidden
-                until the next navigation reports the current domain.
+                Asked before the main process was listening
             */
-
-            setTimerAvailability(false);
         });
+
 </script>
 </body>
 </html>

@@ -2,12 +2,12 @@ const { powerSaveBlocker } = require('electron');
 
 /*
     Focus mode fills the screen with the app and keeps it above every
-    other window for the length of a timer.
+    other window until it is turned off again.
 
     macOS reserves Cmd+Tab and gives no public API for Do Not Disturb,
     so this cannot stop the machine being used elsewhere. What it can
-    do is make sure nothing else is visible while the timer runs, and
-    that switching away reveals nothing.
+    do is make sure nothing else is visible while it is on, and that
+    switching away reveals nothing.
 */
 
 let focusWindow = null;
@@ -49,8 +49,8 @@ function enterFocusMode() {
     focusWindow.focus();
 
     /*
-        A timer someone is reading should not be dimmed out from under
-        them while they think
+        Someone reading rather than typing should not have the screen
+        dim out from under them
     */
 
     powerBlockerId = powerSaveBlocker.start('prevent-display-sleep');
