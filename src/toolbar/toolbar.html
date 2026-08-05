@@ -454,10 +454,274 @@
 
                 font-size: 12px;
             }
+
+            /*
+            Tabs
+
+            A strip above the address bar. It is shown even when there is
+            only one tab, so the page never moves up and down underneath
+            the pointer as tabs come and go.
+        */
+
+            #tab-strip {
+                display: flex;
+
+                align-items: center;
+
+                height: 36px;
+
+                padding: 0 6px;
+
+                background: #292a2d;
+            }
+
+            #tabs {
+                position: relative;
+
+                display: flex;
+
+                align-items: center;
+
+                flex: 1;
+
+                /*
+                Without this the tabs push the "+" off the end of the
+                strip rather than shrinking
+            */
+
+                min-width: 0;
+
+                height: 100%;
+
+                overflow: hidden;
+            }
+
+            .tab {
+                box-sizing: border-box;
+
+                display: flex;
+
+                align-items: center;
+
+                /*
+                Shared out evenly, the way a browser divides its strip,
+                up to the width one tab is worth showing at
+            */
+
+                flex: 1 1 0;
+
+                min-width: 44px;
+
+                max-width: 200px;
+
+                height: 28px;
+
+                margin-right: 2px;
+
+                padding: 0 6px 0 8px;
+
+                border-radius: 8px;
+
+                color: #9aa0a6;
+
+                font-size: 12px;
+
+                cursor: default;
+
+                user-select: none;
+
+                overflow: hidden;
+            }
+
+            .tab:hover {
+                background: #35363a;
+
+                color: #e8eaed;
+            }
+
+            .tab.active {
+                background: #3c4043;
+
+                color: #e8eaed;
+            }
+
+            .tab.dragging {
+                opacity: 0.4;
+            }
+
+            .tab-icon {
+                width: 16px;
+
+                height: 16px;
+
+                flex: none;
+
+                margin-right: 6px;
+
+                border-radius: 3px;
+
+                object-fit: contain;
+            }
+
+            /*
+            Stands in for a site with no usable icon
+        */
+
+            .tab-letter {
+                display: flex;
+
+                align-items: center;
+
+                justify-content: center;
+
+                background: #5f6368;
+
+                color: #e8eaed;
+
+                font-size: 10px;
+
+                text-transform: uppercase;
+            }
+
+            /*
+            Takes the icon's place while the page is on its way, so a tab
+            opened in the background says it is doing something
+        */
+
+            .tab-spinner {
+                box-sizing: border-box;
+
+                width: 14px;
+
+                height: 14px;
+
+                flex: none;
+
+                margin: 0 7px 0 1px;
+
+                border: 2px solid #5f6368;
+
+                border-top-color: #8ab4f8;
+
+                border-radius: 50%;
+
+                animation: tab-spin 0.7s linear infinite;
+            }
+
+            @keyframes tab-spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+
+            .tab-label {
+                flex: 1;
+
+                overflow: hidden;
+
+                text-overflow: ellipsis;
+
+                white-space: nowrap;
+            }
+
+            /*
+            Only on the tab being pointed at and the one in front, so a
+            full strip is not a row of crosses
+        */
+
+            .tab-close {
+                display: flex;
+
+                align-items: center;
+
+                justify-content: center;
+
+                flex: none;
+
+                width: 16px;
+
+                height: 16px;
+
+                margin-left: 4px;
+
+                border-radius: 50%;
+
+                font-size: 11px;
+
+                visibility: hidden;
+            }
+
+            .tab:hover .tab-close,
+            .tab.active .tab-close {
+                visibility: visible;
+            }
+
+            .tab-close:hover {
+                background: #5f6368;
+
+                color: white;
+            }
+
+            /*
+            Marks where a dragged tab would land. Positioned rather than
+            inserted, so the strip does not shift under the cursor.
+        */
+
+            #tab-drop {
+                position: absolute;
+
+                top: 4px;
+
+                display: none;
+
+                width: 2px;
+
+                height: 28px;
+
+                border-radius: 1px;
+
+                background: #8ab4f8;
+
+                pointer-events: none;
+            }
+
+            #tab-drop.visible {
+                display: block;
+            }
+
+            #new-tab {
+                flex: none;
+
+                width: 28px;
+
+                height: 28px;
+
+                margin-left: 4px;
+
+                background: transparent;
+
+                color: #9aa0a6;
+
+                font-size: 15px;
+
+                line-height: 1;
+            }
+
+            #new-tab:hover {
+                background: #3c4043;
+
+                color: white;
+            }
         </style>
     </head>
 
     <body>
+        <div id="tab-strip">
+            <div id="tabs"><div id="tab-drop"></div></div>
+
+            <button id="new-tab" title="New tab">+</button>
+        </div>
+
         <div id="bar">
             <button onclick="browserAPI.back()">←</button>
 
@@ -943,8 +1207,19 @@
 
                 chip.appendChild(label);
 
-                chip.addEventListener('click', () => {
-                    browserAPI.openBookmark(bookmark.url);
+                /*
+                Held down, the way a browser opens a link behind what
+                is being read rather than in front of it
+            */
+
+                chip.addEventListener('click', (event) => {
+                    const behind = event.metaKey || event.ctrlKey;
+
+                    browserAPI.openBookmark(bookmark.url, {
+                        newTab: behind,
+
+                        background: behind
+                    });
                 });
 
                 chip.addEventListener('contextmenu', (event) => {
@@ -1186,10 +1461,12 @@
     */
 
             function syncToolbarHeight() {
+                const stripHeight = document.getElementById('tab-strip').offsetHeight;
+
                 const barHeight = document.getElementById('bar').offsetHeight;
 
                 browserAPI.setToolbarHeight(
-                    barHeight + (barVisible ? bookmarkBar.offsetHeight : 0)
+                    stripHeight + barHeight + (barVisible ? bookmarkBar.offsetHeight : 0)
                 );
             }
 
@@ -1211,6 +1488,287 @@
             browserAPI.onBookmarkRename(startRename);
 
             refreshBookmarks();
+
+            /*
+        Tabs
+
+        The strip is a picture of what the main process holds. Nothing is
+        added or removed here; every click is sent over and the state that
+        comes back is drawn.
+    */
+
+            const tabStrip = document.getElementById('tabs');
+
+            const newTabButton = document.getElementById('new-tab');
+
+            const tabDrop = document.getElementById('tab-drop');
+
+            const NEW_TAB_SHORTCUT = navigator.userAgent.includes('Mac') ? '⌘T' : 'Ctrl+T';
+
+            let tabs = [];
+
+            /*
+        Set for the length of a drag, so the strip ignores anything
+        dragged into it from elsewhere
+    */
+
+            let dragTabId = null;
+
+            let tabDropIndex = -1;
+
+            newTabButton.title = 'New tab (' + NEW_TAB_SHORTCUT + ')';
+
+            function renderTabs(state) {
+                tabs = Array.isArray(state.tabs) ? state.tabs : [];
+
+                tabStrip.textContent = '';
+
+                /*
+            Cleared along with the tabs, so it is put back rather than
+            rebuilt
+        */
+
+                tabStrip.appendChild(tabDrop);
+
+                tabs.forEach((tab) => {
+                    tabStrip.appendChild(createTabChip(tab));
+                });
+            }
+
+            function tabLabel(tab) {
+                if (tab.title) return tab.title;
+
+                try {
+                    return new URL(tab.url).hostname.replace(/^www\./, '');
+                } catch {
+                    return 'New tab';
+                }
+            }
+
+            function createTabChip(tab) {
+                const chip = document.createElement('div');
+
+                chip.className = 'tab' + (tab.active ? ' active' : '');
+
+                chip.title = tabLabel(tab) + (tab.url ? '\n' + tab.url : '');
+
+                chip.draggable = true;
+
+                chip.dataset.id = String(tab.id);
+
+                chip.appendChild(createTabIcon(tab));
+
+                const label = document.createElement('span');
+
+                label.className = 'tab-label';
+
+                label.textContent = tabLabel(tab);
+
+                chip.appendChild(label);
+
+                const close = document.createElement('span');
+
+                close.className = 'tab-close';
+
+                close.textContent = '✕';
+
+                close.title = 'Close tab';
+
+                close.addEventListener('click', (event) => {
+                    /*
+                The tab underneath would otherwise be selected on the
+                way out
+            */
+
+                    event.stopPropagation();
+
+                    browserAPI.closeTab(tab.id);
+                });
+
+                chip.appendChild(close);
+
+                chip.addEventListener('click', () => {
+                    if (!tab.active) {
+                        browserAPI.selectTab(tab.id);
+                    }
+                });
+
+                /*
+            Middle-clicking a tab closes it, which is how every browser
+            with a strip behaves
+        */
+
+                chip.addEventListener('auxclick', (event) => {
+                    if (event.button !== 1) return;
+
+                    event.preventDefault();
+
+                    browserAPI.closeTab(tab.id);
+                });
+
+                chip.addEventListener('dragstart', (event) => {
+                    dragTabId = tab.id;
+
+                    event.dataTransfer.effectAllowed = 'move';
+
+                    /*
+                The drag has to carry something before dragover fires
+            */
+
+                    event.dataTransfer.setData('text/plain', String(tab.id));
+
+                    chip.classList.add('dragging');
+                });
+
+                chip.addEventListener('dragend', () => {
+                    chip.classList.remove('dragging');
+
+                    hideTabDropIndicator();
+
+                    dragTabId = null;
+                });
+
+                return chip;
+            }
+
+            function createTabIcon(tab) {
+                if (tab.loading) {
+                    const spinner = document.createElement('div');
+
+                    spinner.className = 'tab-spinner';
+
+                    return spinner;
+                }
+
+                if (!tab.favicon) {
+                    return createTabLetterIcon(tab);
+                }
+
+                const icon = document.createElement('img');
+
+                icon.className = 'tab-icon';
+
+                icon.src = tab.favicon;
+
+                /*
+            A site whose icon has moved or is blocked falls back to the
+            lettered square rather than showing a broken image
+        */
+
+                icon.addEventListener('error', () => {
+                    icon.replaceWith(createTabLetterIcon(tab));
+                });
+
+                return icon;
+            }
+
+            function createTabLetterIcon(tab) {
+                const icon = document.createElement('div');
+
+                icon.className = 'tab-icon tab-letter';
+
+                try {
+                    icon.textContent = new URL(tab.url).hostname.replace(/^www\./, '').charAt(0);
+                } catch {
+                    icon.textContent = (tab.title || '?').charAt(0);
+                }
+
+                return icon;
+            }
+
+            /*
+        The gap the dragged tab would fall into, from which tab centres
+        the cursor has passed
+    */
+
+            function tabInsertIndexFor(clientX) {
+                const chips = tabStrip.querySelectorAll('.tab');
+
+                for (let index = 0; index < chips.length; index += 1) {
+                    const box = chips[index].getBoundingClientRect();
+
+                    if (clientX < box.left + box.width / 2) {
+                        return index;
+                    }
+                }
+
+                return chips.length;
+            }
+
+            function showTabDropIndicator(index) {
+                const chips = tabStrip.querySelectorAll('.tab');
+
+                if (chips.length === 0) return;
+
+                const last = chips[chips.length - 1];
+
+                tabDrop.style.left =
+                    index < chips.length
+                        ? chips[index].offsetLeft - 2 + 'px'
+                        : last.offsetLeft + last.offsetWidth + 'px';
+
+                tabDrop.classList.add('visible');
+            }
+
+            function hideTabDropIndicator() {
+                tabDrop.classList.remove('visible');
+
+                tabDropIndex = -1;
+            }
+
+            tabStrip.addEventListener('dragover', (event) => {
+                if (dragTabId === null) return;
+
+                event.preventDefault();
+
+                event.dataTransfer.dropEffect = 'move';
+
+                tabDropIndex = tabInsertIndexFor(event.clientX);
+
+                showTabDropIndicator(tabDropIndex);
+            });
+
+            tabStrip.addEventListener('dragleave', (event) => {
+                if (event.target === tabStrip) {
+                    hideTabDropIndicator();
+                }
+            });
+
+            tabStrip.addEventListener('drop', (event) => {
+                if (dragTabId === null || tabDropIndex === -1) return;
+
+                event.preventDefault();
+
+                const from = tabs.findIndex((tab) => tab.id === dragTabId);
+
+                /*
+            Where it lands once it has been lifted out of the strip,
+            which is one place to the left when it moves rightwards
+        */
+
+                const target = tabDropIndex > from ? tabDropIndex - 1 : tabDropIndex;
+
+                hideTabDropIndicator();
+
+                if (from !== -1 && target !== from) {
+                    browserAPI.moveTab(dragTabId, target);
+                }
+            });
+
+            newTabButton.addEventListener('click', () => {
+                browserAPI.newTab();
+            });
+
+            browserAPI.onTabState(renderTabs);
+
+            browserAPI
+                .getTabState()
+                .then(renderTabs)
+                .catch(() => {
+                    /*
+                Asked before the main process was listening
+            */
+                });
 
             /*
         Focus mode
@@ -1247,31 +1805,42 @@
 
             const maximiseButton = document.getElementById('maximise');
 
+            /*
+        The button is not in the bar at the moment, so nothing below it
+        in this file would run if it were reached for anyway
+    */
+
+            if (maximiseButton) {
+                wireMaximiseButton();
+            }
+
             function showMaximised(maximised) {
                 maximiseButton.textContent = maximised ? '⤡' : '⤢';
 
                 maximiseButton.title = maximised ? 'Restore window' : 'Maximise window';
             }
 
-            maximiseButton.addEventListener('click', () => {
-                browserAPI.toggleMaximise().then(showMaximised);
-            });
-
-            /*
-        The window can also be maximised from its own title bar, so the
-        icon follows the window rather than only its own clicks
-    */
-
-            browserAPI.onMaximiseChange(showMaximised);
-
-            browserAPI
-                .isMaximised()
-                .then(showMaximised)
-                .catch(() => {
-                    /*
-                Asked before the main process was listening
-            */
+            function wireMaximiseButton() {
+                maximiseButton.addEventListener('click', () => {
+                    browserAPI.toggleMaximise().then(showMaximised);
                 });
+
+                /*
+            The window can also be maximised from its own title bar, so
+            the icon follows the window rather than only its own clicks
+        */
+
+                browserAPI.onMaximiseChange(showMaximised);
+
+                browserAPI
+                    .isMaximised()
+                    .then(showMaximised)
+                    .catch(() => {
+                        /*
+                    Asked before the main process was listening
+                */
+                    });
+            }
         </script>
     </body>
 </html>

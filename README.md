@@ -22,6 +22,8 @@ WebDesk uses Electron's Chromium engine to provide a dedicated application windo
 * URL toolbar navigation
 * Back / forward navigation
 * Page refresh support
+* Tabs, with drag-to-reorder and `⌘T` / `⌘W` / `⌘1`–`⌘9` / `⌃Tab` shortcuts
+* Links that ask for a new window open in a new tab instead
 
 ---
 

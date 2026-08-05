@@ -47,6 +47,32 @@ contextBridge.exposeInMainWorld('browserAPI', {
         return ipcRenderer.invoke('set-home-to-current');
     },
 
+    getTabState() {
+        return ipcRenderer.invoke('get-tab-state');
+    },
+
+    newTab(url) {
+        ipcRenderer.send('new-tab', url);
+    },
+
+    selectTab(id) {
+        ipcRenderer.send('select-tab', id);
+    },
+
+    closeTab(id) {
+        ipcRenderer.send('close-tab', id);
+    },
+
+    moveTab(id, toIndex) {
+        ipcRenderer.send('move-tab', id, toIndex);
+    },
+
+    onTabState(callback) {
+        ipcRenderer.on('tab-state', (_, state) => {
+            callback(state);
+        });
+    },
+
     toggleFocusMode() {
         return ipcRenderer.invoke('toggle-focus-mode');
     },
@@ -129,8 +155,8 @@ contextBridge.exposeInMainWorld('browserAPI', {
         return ipcRenderer.invoke('set-bookmark-bar-visible', visible);
     },
 
-    openBookmark(url) {
-        ipcRenderer.send('open-bookmark', url);
+    openBookmark(url, options) {
+        ipcRenderer.send('open-bookmark', url, options);
     },
 
     showBookmarkMenu(url) {

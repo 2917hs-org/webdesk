@@ -1,4 +1,4 @@
-const { BrowserView, ipcMain, BrowserWindow, Menu } = require('electron');
+const { ipcMain, BrowserWindow, Menu } = require('electron');
 
 const { getWebsiteUrl, setWebsiteUrl } = require('../config/appConfig');
 
@@ -13,47 +13,61 @@ const adblockStore = require('../privacy/adblockStore');
 
 const adblocker = require('../privacy/adblocker');
 
+const tabs = require('../tabs/tabManager');
+
 const TOOLBAR_HEIGHT = 50;
 
-let browserView = null;
+/*
+    Kept rather than looked up, so what the toolbar is told cannot end
+    up going to the setup window when that one happens to be open
+*/
+
+let mainWindow = null;
 
 /*
-    Grows while the bookmarks bar is shown, so the bar is not
-    hidden behind the BrowserView layered on top of the toolbar page
+    Grows while the tab strip and the bookmarks bar are shown, so
+    neither is hidden behind the view layered on top of the toolbar page
 */
 
 let toolbarHeight = TOOLBAR_HEIGHT;
 
-/*
-    Icon of the page currently in the view, kept so bookmarking it
-    saves the icon the user can already see in the page
-*/
-
-let currentFavicon = '';
-
-/*
-    What the address bar last sent somewhere as a URL, kept so a guess
-    that turns out not to resolve can be searched for instead
-*/
-
-let pendingOmniboxGuess = null;
-
 function createBrowserView(window) {
-    browserView = new BrowserView({
-        webPreferences: {
-            contextIsolation: true,
+    mainWindow = window;
 
-            nodeIntegration: false,
+    tabs.init(window, {
+        onViewCreated: (tab) => {
+            registerNavigationEvents(tab);
 
-            sandbox: true,
+            registerLinkHandling(tab);
 
-            partition: 'persist:webdesk'
-        }
+            registerShortcuts(tab.view.webContents);
+        },
+
+        onActivate: (tab) => {
+            /*
+                Everything the toolbar shows is about one page, so the
+                new one has to say all of it again on the way in
+            */
+
+            const url = tab.view.webContents.getURL();
+
+            adblocker.applyForUrl(url);
+
+            sendToToolbar('url-change', url);
+
+            sendToToolbar('loading', tab.loading);
+
+            sendToToolbar('shield-state', shieldState());
+
+            sendToToolbar('bookmark-state', bookmarkState());
+        },
+
+        onChange: () => {
+            sendToToolbar('tab-state', tabState());
+        },
+
+        bounds: () => viewBounds()
     });
-
-    window.setBrowserView(browserView);
-
-    resizeBrowserView(window);
 
     /*
         Registered before the early return below, so the toolbar always
@@ -62,78 +76,92 @@ function createBrowserView(window) {
 
     registerToolbarEvents(window);
 
-    registerShortcuts(window);
+    registerBrowserEvents();
+
+    registerShortcuts(window.webContents);
+
+    /*
+        Blocking is a property of the shared partition rather than of any
+        one view, so it is set up whether or not a tab exists yet
+    */
+
+    adblocker.initAdblocker(tabs.getSession(), currentUrl, () => {
+        sendToToolbar('shield-state', shieldState());
+    });
 
     const websiteUrl = getWebsiteUrl();
 
-    if (websiteUrl) {
-        browserView.webContents.loadURL(websiteUrl);
-    } else {
-        // browserView.webContents.loadURL(
-        //     ""
-        // );
-        return;
-    }
+    if (!websiteUrl) return;
 
-    registerNavigationEvents();
-
-    registerBrowserEvents();
-
-    /*
-        Building the engine needs the network on a first run, so the app
-        carries on unblocked and the loader keeps retrying behind it
-    */
-
-    adblocker.initAdblocker(
-        browserView.webContents.session,
-
-        () => (browserView ? browserView.webContents.getURL() : ''),
-
-        () => {
-            sendToToolbar('shield-state', shieldState());
-        }
-    );
+    tabs.createTab(websiteUrl);
 }
 
-function registerNavigationEvents() {
-    browserView.webContents.on('did-start-loading', () => {
-        sendToToolbar('loading', true);
+function registerNavigationEvents(tab) {
+    const contents = tab.view.webContents;
+
+    contents.on('did-start-loading', () => {
+        tab.loading = true;
+
+        if (isActive(tab)) {
+            sendToToolbar('loading', true);
+        }
+
+        sendToToolbar('tab-state', tabState());
     });
 
-    browserView.webContents.on('did-stop-loading', () => {
-        sendToToolbar('loading', false);
+    contents.on('did-stop-loading', () => {
+        tab.loading = false;
+
+        if (isActive(tab)) {
+            sendToToolbar('loading', false);
+        }
+
+        sendToToolbar('tab-state', tabState());
     });
 
-    browserView.webContents.on('did-navigate', (_, url) => {
+    contents.on('did-navigate', (_, url) => {
         /*
             The new page's icon arrives afterwards, so the old one is
             dropped here rather than being saved against this URL
         */
 
-        currentFavicon = '';
+        tab.favicon = '';
+
+        tab.url = url;
 
         /*
             It resolved, so there is nothing left to fall back on
         */
 
-        pendingOmniboxGuess = null;
+        tab.pendingOmniboxGuess = null;
 
         /*
-            The exception is per hostname, so blocking is matched to the
-            new page before its subresources start arriving
+            Blocking is per hostname but the session is shared, so it
+            follows the tab being looked at. A page loading out of sight
+            is blocked the way the tab in front of it is.
         */
 
-        adblocker.applyForUrl(url);
+        if (isActive(tab)) {
+            adblocker.applyForUrl(url);
 
-        adblocker.resetCount();
+            adblocker.resetCount();
 
-        sendToToolbar('url-change', url);
+            sendToToolbar('url-change', url);
 
-        sendToToolbar('shield-state', shieldState());
+            sendToToolbar('shield-state', shieldState());
+        }
+
+        sendToToolbar('tab-state', tabState());
     });
 
-    browserView.webContents.on('did-navigate-in-page', (_, url) => {
-        sendToToolbar('url-change', url);
+    contents.on('did-navigate-in-page', (_, url) => {
+        tab.url = url;
+
+        if (isActive(tab)) {
+            sendToToolbar('url-change', url);
+        }
+
+        sendToToolbar('tab-state', tabState());
     });
 
     /*
@@ -142,8 +170,8 @@ function registerNavigationEvents() {
         is searched for instead, which is what a browser appears to do.
     */
 
-    browserView.webContents.on('did-fail-load', (_, errorCode, __, failedUrl, isMainFrame) => {
-        if (!isMainFrame || !pendingOmniboxGuess) return;
+    contents.on('did-fail-load', (_, errorCode, __, failedUrl, isMainFrame) => {
+        if (!isMainFrame || !tab.pendingOmniboxGuess) return;
 
         /*
             Chromium reports the URL it normalised, so "https://node.js"
@@ -151,32 +179,68 @@ function registerNavigationEvents() {
             plain text
         */
 
-        if (!isSameUrl(failedUrl, pendingOmniboxGuess.url)) return;
+        if (!isSameUrl(failedUrl, tab.pendingOmniboxGuess.url)) return;
 
         const unresolved = errorCode === -105 || errorCode === -137;
 
         if (!unresolved) return;
 
-        const query = pendingOmniboxGuess.query;
+        const query = tab.pendingOmniboxGuess.query;
 
-        pendingOmniboxGuess = null;
+        tab.pendingOmniboxGuess = null;
 
-        browserView.webContents.loadURL(searchEngines.buildSearchUrl(query));
+        contents.loadURL(searchEngines.buildSearchUrl(query));
     });
 
-    browserView.webContents.on('page-favicon-updated', (_, favicons) => {
-        currentFavicon = Array.isArray(favicons) && favicons.length ? favicons[0] : '';
+    contents.on('page-title-updated', (_, title) => {
+        tab.title = title;
 
-        if (bookmarkStore.updateFavicon(browserView.webContents.getURL(), currentFavicon)) {
+        sendToToolbar('tab-state', tabState());
+    });
+
+    contents.on('page-favicon-updated', (_, favicons) => {
+        tab.favicon = Array.isArray(favicons) && favicons.length ? favicons[0] : '';
+
+        if (bookmarkStore.updateFavicon(contents.getURL(), tab.favicon)) {
             sendToToolbar('bookmark-state', bookmarkState());
         }
+
+        sendToToolbar('tab-state', tabState());
+    });
+}
+
+/*
+    A link that asks for a window of its own gets a tab instead, since a
+    second bare window would have no toolbar to drive it
+*/
+
+function registerLinkHandling(tab) {
+    tab.view.webContents.setWindowOpenHandler(({ url, disposition }) => {
+        if (isWebUrl(url)) {
+            openTab(url, {
+                background: disposition === 'background-tab',
+
+                /*
+                    Opened next to the tab that asked for it rather than
+                    at the end of the strip
+                */
+
+                atIndex: indexAfter(tab.id)
+            });
+        }
+
+        return { action: 'deny' };
     });
 }
 
 function registerBrowserEvents() {
+    ipcMain.removeAllListeners('navigate');
+
     ipcMain.on('navigate', (_, url) => {
-        if (browserView) {
-            browserView.webContents.loadURL(url);
+        const view = tabs.activeView();
+
+        if (view) {
+            view.webContents.loadURL(url);
         }
     });
 
@@ -185,22 +249,28 @@ function registerBrowserEvents() {
         search here, so the choice of engine stays out of the toolbar
     */
 
+    ipcMain.removeAllListeners('omnibox-submit');
+
     ipcMain.on('omnibox-submit', (_, text) => {
-        if (!browserView) return;
+        const tab = tabs.activeTab();
+
+        if (!tab) return;
 
         const resolved = searchEngines.resolveInput(text);
 
         if (!resolved) return;
 
-        pendingOmniboxGuess = resolved.type === 'url' ? resolved : null;
+        tab.pendingOmniboxGuess = resolved.type === 'url' ? resolved : null;
 
-        browserView.webContents.loadURL(resolved.url);
+        tab.view.webContents.loadURL(resolved.url);
     });
 
     /*
         Right-clicking the address bar picks the engine, so switching
         does not mean editing settings.json
     */
+
+    ipcMain.removeAllListeners('show-search-menu');
 
     ipcMain.on('show-search-menu', (event) => {
         const engines = searchEngines.getEngines();
@@ -226,24 +296,42 @@ function registerBrowserEvents() {
         menu.popup({ window: BrowserWindow.fromWebContents(event.sender) });
     });
 
+    ipcMain.removeAllListeners('go-back');
+
     ipcMain.on('go-back', () => {
-        const history = browserView.webContents.navigationHistory;
+        const view = tabs.activeView();
+
+        if (!view) return;
+
+        const history = view.webContents.navigationHistory;
 
         if (history.canGoBack()) {
             history.goBack();
         }
     });
 
+    ipcMain.removeAllListeners('go-forward');
+
     ipcMain.on('go-forward', () => {
-        const history = browserView.webContents.navigationHistory;
+        const view = tabs.activeView();
+
+        if (!view) return;
+
+        const history = view.webContents.navigationHistory;
 
         if (history.canGoForward()) {
             history.goForward();
         }
     });
 
+    ipcMain.removeAllListeners('reload');
+
     ipcMain.on('reload', () => {
-        browserView.webContents.reload();
+        const view = tabs.activeView();
+
+        if (view) {
+            view.webContents.reload();
+        }
     });
 
     /*
@@ -251,11 +339,15 @@ function registerBrowserEvents() {
         not know about, so the URL is resolved here
     */
 
+    ipcMain.removeAllListeners('go-home');
+
     ipcMain.on('go-home', () => {
+        const view = tabs.activeView();
+
         const websiteUrl = getWebsiteUrl();
 
-        if (browserView && websiteUrl) {
-            browserView.webContents.loadURL(websiteUrl);
+        if (view && websiteUrl) {
+            view.webContents.loadURL(websiteUrl);
         }
     });
 
@@ -263,6 +355,8 @@ function registerBrowserEvents() {
         The setup window is the only place the homepage can be edited,
         so changing it reopens that window over the running app
     */
+
+    ipcMain.removeAllListeners('show-home-menu');
 
     ipcMain.on('show-home-menu', (event) => {
         const menu = Menu.buildFromTemplate([
@@ -273,11 +367,15 @@ function registerBrowserEvents() {
                     createSetupWindow({
                         currentUrl: getWebsiteUrl(),
 
-                        currentPageUrl: browserView ? browserView.webContents.getURL() : '',
+                        currentPageUrl: currentUrl(),
 
                         onSaved: (url) => {
-                            if (browserView) {
-                                browserView.webContents.loadURL(url);
+                            const view = tabs.activeView();
+
+                            if (view) {
+                                view.webContents.loadURL(url);
+                            } else {
+                                openTab(url);
                             }
                         }
                     });
@@ -307,9 +405,7 @@ function registerToolbarEvents(window) {
     ipcMain.removeHandler('set-home-to-current');
 
     ipcMain.handle('set-home-to-current', () => {
-        if (!browserView) return null;
-
-        const url = browserView.webContents.getURL();
+        const url = currentUrl();
 
         if (!isWebUrl(url)) return null;
 
@@ -318,10 +414,42 @@ function registerToolbarEvents(window) {
         return url;
     });
 
+    /*
+        Tabs
+    */
+
+    ipcMain.removeHandler('get-tab-state');
+
+    ipcMain.handle('get-tab-state', () => tabState());
+
+    ipcMain.removeAllListeners('new-tab');
+
+    ipcMain.on('new-tab', (_, url) => {
+        openTab(isWebUrl(url) ? url : getWebsiteUrl());
+    });
+
+    ipcMain.removeAllListeners('select-tab');
+
+    ipcMain.on('select-tab', (_, id) => {
+        tabs.selectTab(id);
+    });
+
+    ipcMain.removeAllListeners('close-tab');
+
+    ipcMain.on('close-tab', (_, id) => {
+        closeTab(id);
+    });
+
+    ipcMain.removeAllListeners('move-tab');
+
+    ipcMain.on('move-tab', (_, id, toIndex) => {
+        tabs.moveTab(id, toIndex);
+    });
+
     focusMode.attachFocusMode(window, (active) => {
         sendToToolbar('focus-mode-changed', active);
 
-        resizeBrowserView(window);
+        resizeBrowserView();
     });
 
     ipcMain.removeHandler('toggle-focus-mode');
@@ -375,15 +503,17 @@ function registerToolbarEvents(window) {
     ipcMain.removeHandler('toggle-shield-for-site');
 
     ipcMain.handle('toggle-shield-for-site', () => {
-        if (!browserView) return shieldState();
+        const view = tabs.activeView();
 
-        const url = browserView.webContents.getURL();
+        if (!view) return shieldState();
+
+        const url = view.webContents.getURL();
 
         adblockStore.toggleAllowlist(url);
 
         adblocker.applyForUrl(url);
 
-        browserView.webContents.reload();
+        view.webContents.reload();
 
         return shieldState();
     });
@@ -394,11 +524,13 @@ function registerToolbarEvents(window) {
     ipcMain.removeHandler('toggle-bookmark');
 
     ipcMain.handle('toggle-bookmark', () => {
-        if (browserView) {
+        const tab = tabs.activeTab();
+
+        if (tab) {
             bookmarkStore.toggleBookmark(
-                browserView.webContents.getURL(),
-                browserView.webContents.getTitle(),
-                currentFavicon
+                tab.view.webContents.getURL(),
+                tab.view.webContents.getTitle(),
+                tab.favicon
             );
         }
 
@@ -439,14 +571,14 @@ function registerToolbarEvents(window) {
 
     ipcMain.removeAllListeners('open-bookmark');
 
-    ipcMain.on('open-bookmark', (_, url) => {
-        openBookmark(url);
+    ipcMain.on('open-bookmark', (_, url, options) => {
+        openBookmark(url, options);
     });
 
     /*
         A menu drawn inside the toolbar page would be covered by the
-        BrowserView sitting on top of it, so the context menu is a
-        native one owned by the main process
+        view sitting on top of it, so the context menu is a native one
+        owned by the main process
     */
 
     ipcMain.removeAllListeners('show-bookmark-menu');
@@ -457,6 +589,12 @@ function registerToolbarEvents(window) {
                 label: 'Open',
 
                 click: () => openBookmark(url)
+            },
+
+            {
+                label: 'Open in New Tab',
+
+                click: () => openBookmark(url, { newTab: true })
             },
 
             { type: 'separator' },
@@ -495,25 +633,42 @@ function registerToolbarEvents(window) {
 
         toolbarHeight = Math.max(TOOLBAR_HEIGHT, Math.round(requested));
 
-        resizeBrowserView(window);
+        resizeBrowserView();
     });
 }
 
 /*
     The application menu is removed, so these shortcuts are caught off
-    the key events of both the toolbar and the page inside the view
+    the key events of both the toolbar and the pages inside the tabs
 */
 
-function registerShortcuts(window) {
-    const handler = (event, input) => {
-        if (input.type !== 'keyDown') return;
+function registerShortcuts(contents) {
+    contents.on('before-input-event', handleShortcut);
+}
 
-        const modifier = process.platform === 'darwin' ? input.meta : input.control;
+function handleShortcut(event, input) {
+    if (input.type !== 'keyDown') return;
 
-        if (!modifier || !input.shift) return;
+    const key = String(input.key).toLowerCase();
 
-        const key = String(input.key).toLowerCase();
+    /*
+        Ctrl+Tab cycles on every platform, including macOS, where the
+        rest of the tab shortcuts are Cmd-based
+    */
 
+    if (input.control && key === 'tab') {
+        event.preventDefault();
+
+        tabs.cycle(input.shift ? -1 : 1);
+
+        return;
+    }
+
+    const modifier = process.platform === 'darwin' ? input.meta : input.control;
+
+    if (!modifier) return;
+
+    if (input.shift) {
         if (key === 'b') {
             event.preventDefault();
 
@@ -537,11 +692,67 @@ function registerShortcuts(window) {
                 focusMode.enterFocusMode();
             }
         }
-    };
 
-    window.webContents.on('before-input-event', handler);
+        return;
+    }
 
-    browserView.webContents.on('before-input-event', handler);
+    if (key === 't') {
+        event.preventDefault();
+
+        openTab(getWebsiteUrl());
+
+        return;
+    }
+
+    if (key === 'w') {
+        event.preventDefault();
+
+        closeTab(tabs.getActiveId());
+
+        return;
+    }
+
+    if (/^[1-9]$/.test(key)) {
+        event.preventDefault();
+
+        tabs.selectByPosition(Number(key));
+    }
+}
+
+function openTab(url, options = {}) {
+    return tabs.createTab(isWebUrl(url) ? url : getWebsiteUrl() || 'about:blank', options);
+}
+
+/*
+    Closing the last tab would leave a toolbar driving nothing, and this
+    window is the app, so a fresh homepage tab takes its place rather
+    than the window going away underneath the user
+*/
+
+function closeTab(id) {
+    if (id === null || id === undefined) return;
+
+    if (tabs.closeTab(id) === 0) {
+        openTab(getWebsiteUrl());
+    }
+}
+
+function indexAfter(id) {
+    const list = tabs.getTabs();
+
+    const index = list.findIndex((tab) => tab.id === id);
+
+    return index === -1 ? list.length : index + 1;
+}
+
+function isActive(tab) {
+    return tab.id === tabs.getActiveId();
+}
+
+function currentUrl() {
+    const view = tabs.activeView();
+
+    return view ? view.webContents.getURL() : '';
 }
 
 function isSameUrl(a, b) {
@@ -562,14 +773,22 @@ function isWebUrl(url) {
     }
 }
 
-function openBookmark(url) {
-    if (browserView && bookmarkStore.isValidUrl(url)) {
-        browserView.webContents.loadURL(url);
+function openBookmark(url, options = {}) {
+    if (!bookmarkStore.isValidUrl(url)) return;
+
+    const view = tabs.activeView();
+
+    if (options.newTab || !view) {
+        openTab(url, { background: Boolean(options.background) });
+
+        return;
     }
+
+    view.webContents.loadURL(url);
 }
 
 function shieldState() {
-    const url = browserView ? browserView.webContents.getURL() : '';
+    const url = currentUrl();
 
     return {
         ready: adblocker.isReady(),
@@ -587,7 +806,7 @@ function shieldState() {
 }
 
 function bookmarkState() {
-    const url = browserView ? browserView.webContents.getURL() : '';
+    const url = currentUrl();
 
     return {
         bookmarks: bookmarkStore.getBookmarks(),
@@ -598,20 +817,26 @@ function bookmarkState() {
     };
 }
 
-function sendToToolbar(channel, data) {
-    const window = BrowserWindow.getAllWindows()[0];
+function tabState() {
+    return {
+        tabs: tabs.getTabs(),
 
-    if (window) {
-        window.webContents.send(channel, data);
-    }
+        activeId: tabs.getActiveId()
+    };
 }
 
-function resizeBrowserView(window) {
-    if (!browserView) return;
+function sendToToolbar(channel, data) {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
 
-    const bounds = window.getContentBounds();
+    mainWindow.webContents.send(channel, data);
+}
 
-    browserView.setBounds({
+function viewBounds() {
+    if (!mainWindow || mainWindow.isDestroyed()) return null;
+
+    const bounds = mainWindow.getContentBounds();
+
+    return {
         x: 0,
 
         y: toolbarHeight,
@@ -619,12 +844,16 @@ function resizeBrowserView(window) {
         width: bounds.width,
 
         height: Math.max(0, bounds.height - toolbarHeight)
-    });
+    };
+}
+
+function resizeBrowserView() {
+    tabs.applyBounds();
 }
 
 function attachResizeHandler(window) {
     window.on('resize', () => {
-        resizeBrowserView(window);
+        resizeBrowserView();
     });
 
     /*
@@ -633,11 +862,11 @@ function attachResizeHandler(window) {
     */
 
     window.on('enter-full-screen', () => {
-        resizeBrowserView(window);
+        resizeBrowserView();
     });
 
     window.on('leave-full-screen', () => {
-        resizeBrowserView(window);
+        resizeBrowserView();
     });
 }
 
