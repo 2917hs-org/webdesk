@@ -717,9 +717,11 @@
 
     <body>
         <div id="tab-strip">
-            <div id="tabs"><div id="tab-drop"></div></div>
+            <div id="tabs">
+                <div id="tab-drop"></div>
 
-            <button id="new-tab" title="New tab">+</button>
+                <button id="new-tab" title="New tab">+</button>
+            </div>
         </div>
 
         <div id="bar">
@@ -1524,8 +1526,8 @@
                 tabStrip.textContent = '';
 
                 /*
-            Cleared along with the tabs, so it is put back rather than
-            rebuilt
+            Cleared along with the tabs, so they are put back rather
+            than rebuilt
         */
 
                 tabStrip.appendChild(tabDrop);
@@ -1533,6 +1535,13 @@
                 tabs.forEach((tab) => {
                     tabStrip.appendChild(createTabChip(tab));
                 });
+
+                /*
+            Last, so it follows the end of the strip rather than sitting
+            out at the window edge
+        */
+
+                tabStrip.appendChild(newTabButton);
             }
 
             function tabLabel(tab) {
