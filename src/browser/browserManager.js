@@ -1,10 +1,14 @@
-const { ipcMain, BrowserWindow, Menu } = require('electron');
+const { ipcMain, BrowserWindow, Menu, clipboard } = require('electron');
 
 const { getWebsiteUrl, setWebsiteUrl } = require('../config/appConfig');
 
 const bookmarkStore = require('../bookmarks/bookmarkStore');
 
 const { createSetupWindow } = require('../onboarding/setupWindow');
+
+const { createPasswordWindow } = require('../passwords/passwordWindow');
+
+const passwordStore = require('../passwords/passwordStore');
 
 const focusMode = require('../focus/focusMode');
 
@@ -30,6 +34,15 @@ let mainWindow = null;
 */
 
 let toolbarHeight = TOOLBAR_HEIGHT;
+
+/*
+    Holds the most recent login capture until the toolbar saves it,
+    dismisses the prompt, or the ten-second offer expires
+*/
+
+let pendingLoginCapture = null;
+
+let savePasswordPromptTimer = null;
 
 function createBrowserView(window) {
     mainWindow = window;
@@ -624,6 +637,89 @@ function registerToolbarEvents(window) {
         menu.popup({ window: BrowserWindow.fromWebContents(event.sender) });
     });
 
+    ipcMain.removeAllListeners('open-password-manager');
+
+    ipcMain.on('open-password-manager', () => {
+        const tab = tabs.activeTab();
+
+        createPasswordWindow({
+            currentPageUrl: tab ? tab.view.webContents.getURL() : '',
+
+            currentPageTitle: tab ? tab.view.webContents.getTitle() : '',
+
+            pendingCapture: pendingLoginCapture
+                ? {
+                      title: pendingLoginCapture.title,
+                      url: pendingLoginCapture.url,
+                      username: pendingLoginCapture.username,
+                      password: pendingLoginCapture.password
+                  }
+                : null
+        });
+    });
+
+    ipcMain.removeHandler('get-password-state');
+
+    ipcMain.handle('get-password-state', () => passwordStore.passwordState());
+
+    ipcMain.removeHandler('setup-password-vault');
+
+    ipcMain.handle('setup-password-vault', (_, masterPassword) =>
+        passwordStore.setupVault(masterPassword));
+
+    ipcMain.removeHandler('unlock-password-vault');
+
+    ipcMain.handle('unlock-password-vault', (_, masterPassword) =>
+        passwordStore.unlockVault(masterPassword));
+
+    ipcMain.removeHandler('lock-password-vault');
+
+    ipcMain.handle('lock-password-vault', () => passwordStore.lockVault());
+
+    ipcMain.removeHandler('add-password');
+
+    ipcMain.handle('add-password', (_, entry) => passwordStore.addEntry(entry));
+
+    ipcMain.removeHandler('update-password');
+
+    ipcMain.handle('update-password', (_, id, updates) => passwordStore.updateEntry(id, updates));
+
+    ipcMain.removeHandler('delete-password');
+
+    ipcMain.handle('delete-password', (_, id) => passwordStore.deleteEntry(id));
+
+    ipcMain.removeHandler('copy-password');
+
+    ipcMain.handle('copy-password', (_, id) => {
+        const result = passwordStore.getEntryPassword(id);
+
+        if (!result.ok) return result;
+
+        clipboard.writeText(result.password);
+
+        return { ok: true };
+    });
+
+    ipcMain.removeAllListeners('login-detected');
+
+    ipcMain.on('login-detected', (event, payload) => {
+        const active = tabs.activeTab();
+
+        if (!active || active.view.webContents !== event.sender) return;
+
+        handleLoginDetected(payload);
+    });
+
+    ipcMain.removeHandler('save-captured-password');
+
+    ipcMain.handle('save-captured-password', () => saveCapturedPassword());
+
+    ipcMain.removeAllListeners('dismiss-save-password-prompt');
+
+    ipcMain.on('dismiss-save-password-prompt', () => {
+        clearSavePasswordPrompt();
+    });
+
     ipcMain.removeAllListeners('set-toolbar-height');
 
     ipcMain.on('set-toolbar-height', (_, height) => {
@@ -771,6 +867,112 @@ function isWebUrl(url) {
     } catch {
         return false;
     }
+}
+
+function hostnameFromUrl(url) {
+    try {
+        return new URL(url).hostname;
+    } catch {
+        return String(url || '').trim();
+    }
+}
+
+function clearSavePasswordPrompt() {
+    if (savePasswordPromptTimer) {
+        clearTimeout(savePasswordPromptTimer);
+
+        savePasswordPromptTimer = null;
+    }
+
+    pendingLoginCapture = null;
+
+    sendToToolbar('save-password-prompt', null);
+}
+
+function handleLoginDetected(payload) {
+    if (!payload || typeof payload.password !== 'string' || !payload.password) return;
+
+    const url = String(payload.url || currentUrl()).trim();
+
+    if (!isWebUrl(url)) return;
+
+    const username = String(payload.username || '').trim();
+
+    if (!username) return;
+
+    if (passwordStore.isVaultSetup() && passwordStore.hasMatchingEntry(url, username)) {
+        return;
+    }
+
+    pendingLoginCapture = {
+        title: String(payload.title || hostnameFromUrl(url)).trim() || hostnameFromUrl(url),
+        url,
+        username,
+        password: payload.password
+    };
+
+    if (savePasswordPromptTimer) {
+        clearTimeout(savePasswordPromptTimer);
+    }
+
+    sendToToolbar('save-password-prompt', {
+        hostname: hostnameFromUrl(url),
+        username,
+        seconds: 10
+    });
+
+    savePasswordPromptTimer = setTimeout(() => {
+        clearSavePasswordPrompt();
+    }, 10000);
+}
+
+function saveCapturedPassword() {
+    if (!pendingLoginCapture) {
+        return { ok: false, error: 'No login details to save' };
+    }
+
+    if (!passwordStore.isVaultSetup()) {
+        openPasswordManagerWithPending();
+
+        return { ok: false, error: 'Set up your password vault first', needsSetup: true };
+    }
+
+    if (!passwordStore.isUnlocked()) {
+        openPasswordManagerWithPending();
+
+        return { ok: false, error: 'Unlock your password vault first', needsUnlock: true };
+    }
+
+    const capture = pendingLoginCapture;
+
+    const result = passwordStore.saveCapturedLogin(capture);
+
+    clearSavePasswordPrompt();
+
+    return result;
+}
+
+function openPasswordManagerWithPending() {
+    const tab = tabs.activeTab();
+
+    createPasswordWindow({
+        currentPageUrl: pendingLoginCapture ? pendingLoginCapture.url : tab ? tab.view.webContents.getURL() : '',
+
+        currentPageTitle: pendingLoginCapture
+            ? pendingLoginCapture.title
+            : tab
+              ? tab.view.webContents.getTitle()
+              : '',
+
+        pendingCapture: pendingLoginCapture
+            ? {
+                  title: pendingLoginCapture.title,
+                  url: pendingLoginCapture.url,
+                  username: pendingLoginCapture.username,
+                  password: pendingLoginCapture.password
+              }
+            : null
+    });
 }
 
 function openBookmark(url, options = {}) {

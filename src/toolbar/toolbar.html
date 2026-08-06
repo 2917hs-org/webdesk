@@ -456,6 +456,88 @@
             }
 
             /*
+            Save-password prompt shown after a login form is submitted
+        */
+
+            #save-password-prompt {
+                display: none;
+
+                align-items: center;
+
+                gap: 10px;
+
+                min-height: 36px;
+
+                padding: 6px 12px;
+
+                background: #303134;
+
+                border-bottom: 1px solid #3c4043;
+
+                color: #e8eaed;
+
+                font-size: 13px;
+            }
+
+            #save-password-prompt.visible {
+                display: flex;
+            }
+
+            #save-password-prompt-text {
+                flex: 1;
+
+                min-width: 0;
+
+                white-space: nowrap;
+
+                overflow: hidden;
+
+                text-overflow: ellipsis;
+            }
+
+            #save-password-prompt-timer {
+                color: #9aa0a6;
+
+                font-size: 12px;
+
+                flex-shrink: 0;
+            }
+
+            #save-password-prompt-actions {
+                display: flex;
+
+                gap: 6px;
+
+                flex-shrink: 0;
+            }
+
+            #save-password-prompt-actions button {
+                width: auto;
+
+                height: 28px;
+
+                margin-left: 0;
+
+                padding: 0 12px;
+
+                font-size: 12px;
+            }
+
+            #save-password-save {
+                background: #8ab4f8;
+
+                color: #202124;
+            }
+
+            #save-password-save:hover {
+                background: #aecbfa;
+            }
+
+            #save-password-dismiss {
+                background: #3c4043;
+            }
+
+            /*
             Tabs
 
             A strip above the address bar. It is shown even when there is
@@ -754,9 +836,23 @@
 
             <button id="bookmark-bar-toggle" title="Show bookmarks bar">▤</button>
 
+            <button id="passwords" title="Password manager">🔑</button>
+
             <button id="focus-toggle" title="Focus mode">⤢</button>
 
             <!-- <button id="maximise" title="Maximise window">⤢</button> -->
+        </div>
+
+        <div id="save-password-prompt">
+            <span id="save-password-prompt-text"></span>
+
+            <span id="save-password-prompt-timer"></span>
+
+            <div id="save-password-prompt-actions">
+                <button id="save-password-save" type="button">Save</button>
+
+                <button id="save-password-dismiss" type="button">Not now</button>
+            </div>
         </div>
 
         <div id="bookmark-bar"><div id="bookmark-drop"></div></div>
@@ -1467,8 +1563,15 @@
 
                 const barHeight = document.getElementById('bar').offsetHeight;
 
+                const prompt = document.getElementById('save-password-prompt');
+
+                const promptHeight = prompt.classList.contains('visible') ? prompt.offsetHeight : 0;
+
                 browserAPI.setToolbarHeight(
-                    stripHeight + barHeight + (barVisible ? bookmarkBar.offsetHeight : 0)
+                    stripHeight +
+                        barHeight +
+                        promptHeight +
+                        (barVisible ? bookmarkBar.offsetHeight : 0)
                 );
             }
 
@@ -1478,6 +1581,10 @@
 
             bookmarkBarToggle.addEventListener('click', () => {
                 browserAPI.setBookmarkBarVisible(!barVisible).then(applyState);
+            });
+
+            document.getElementById('passwords').addEventListener('click', () => {
+                browserAPI.openPasswordManager();
             });
 
             /*

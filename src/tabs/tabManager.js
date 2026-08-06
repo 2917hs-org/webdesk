@@ -1,5 +1,7 @@
 const { BrowserView, session } = require('electron');
 
+const path = require('path');
+
 /*
     Holds one view per tab and decides which of them the window is
     showing. What a page then does — where it navigates, what it blocks,
@@ -120,6 +122,8 @@ function createTab(url, options = {}) {
 
     const view = new BrowserView({
         webPreferences: {
+            preload: path.join(__dirname, '../passwords/loginCapturePreload.js'),
+
             contextIsolation: true,
 
             nodeIntegration: false,
