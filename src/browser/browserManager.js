@@ -1,10 +1,15 @@
-const { ipcMain, BrowserWindow, Menu } = require('electron');
+const { ipcMain, BrowserWindow, Menu, clipboard } = require('electron');
 
 const { getWebsiteUrl, setWebsiteUrl } = require('../config/appConfig');
 
 const bookmarkStore = require('../bookmarks/bookmarkStore');
 
 const { createSetupWindow } = require('../onboarding/setupWindow');
+
+const { createPasswordWindow } = require('../passwords/passwordWindow');
+
+const passwordStore = require('../passwords/passwordStore');
+const credentialStore = require('../passwords/credentialStore');
 
 const focusMode = require('../focus/focusMode');
 
@@ -30,6 +35,17 @@ let mainWindow = null;
 */
 
 let toolbarHeight = TOOLBAR_HEIGHT;
+
+/*
+    Holds the most recent login capture until the toolbar saves it,
+    dismisses the prompt, or the ten-second offer expires
+*/
+
+let pendingLoginCapture = null;
+
+let savePasswordPromptTimer = null;
+
+let autoSavePasswordEnabled = false;
 
 function createBrowserView(window) {
     mainWindow = window;
@@ -455,7 +471,8 @@ function registerToolbarEvents(window) {
     ipcMain.removeHandler('toggle-focus-mode');
 
     ipcMain.handle('toggle-focus-mode', () =>
-        (focusMode.isActive() ? focusMode.exitFocusMode() : focusMode.enterFocusMode()));
+        focusMode.isActive() ? focusMode.exitFocusMode() : focusMode.enterFocusMode()
+    );
 
     /*
         The same thing the green button does: fill the screen, and give
@@ -624,6 +641,176 @@ function registerToolbarEvents(window) {
         menu.popup({ window: BrowserWindow.fromWebContents(event.sender) });
     });
 
+    ipcMain.removeAllListeners('open-password-manager');
+
+    ipcMain.on('open-password-manager', () => {
+        const tab = tabs.activeTab();
+
+        createPasswordWindow({
+            currentPageUrl: tab ? tab.view.webContents.getURL() : '',
+
+            currentPageTitle: tab ? tab.view.webContents.getTitle() : '',
+
+            parentWindow: mainWindow
+        });
+    });
+
+    ipcMain.removeHandler('get-password-state');
+
+    ipcMain.handle('get-password-state', () => passwordStore.passwordState());
+
+    ipcMain.removeHandler('setup-password-vault');
+
+    ipcMain.handle('setup-password-vault', async (_, masterPassword) => {
+        const result = passwordStore.setupVault(masterPassword);
+
+        if (result && result.ok && pendingLoginCapture) {
+            await saveCapturedPassword();
+        }
+
+        return result;
+    });
+
+    ipcMain.removeHandler('unlock-password-vault');
+
+    ipcMain.handle('unlock-password-vault', async (_, masterPassword) => {
+        const result = passwordStore.unlockVault(masterPassword);
+
+        if (result && result.ok && pendingLoginCapture) {
+            await saveCapturedPassword();
+        }
+
+        return result;
+    });
+
+    ipcMain.removeHandler('lock-password-vault');
+
+    ipcMain.handle('lock-password-vault', () => passwordStore.lockVault());
+
+    ipcMain.removeHandler('add-password');
+
+    ipcMain.handle('add-password', (_, entry) => passwordStore.addEntry(entry));
+
+    ipcMain.removeHandler('update-password');
+
+    ipcMain.handle('update-password', (_, id, updates) => passwordStore.updateEntry(id, updates));
+
+    ipcMain.removeHandler('delete-password');
+
+    ipcMain.handle('delete-password', async (_, id) => {
+        const result = passwordStore.deleteEntry(id);
+
+        if (result.ok && result.url && result.username) {
+            await credentialStore.deleteCredential(result.url, result.username);
+        }
+
+        return result;
+    });
+
+    ipcMain.removeHandler('copy-password');
+
+    ipcMain.handle('copy-password', (_, id) => {
+        const result = passwordStore.getEntryPassword(id);
+
+        if (!result.ok) return result;
+
+        clipboard.writeText(result.password);
+
+        return { ok: true };
+    });
+
+    ipcMain.removeAllListeners('login-detected');
+
+    ipcMain.on('login-detected', (event, payload) => {
+        const active = tabs.activeTab();
+
+        if (!active || active.view.webContents !== event.sender) return;
+
+        handleLoginDetected(payload);
+    });
+
+    ipcMain.removeHandler('save-captured-password');
+
+    ipcMain.handle('save-captured-password', () => saveCapturedPassword());
+
+    ipcMain.removeAllListeners('dismiss-save-password-prompt');
+
+    ipcMain.on('dismiss-save-password-prompt', () => {
+        clearSavePasswordPrompt();
+    });
+
+    /*
+        In-page suggestion dropdown: each tab's own preload asks for
+        matches and fills a selection directly, identified by its own
+        webContents (event.sender) rather than by a claimed origin —
+        the real origin always comes from that tab's own current URL
+    */
+
+    ipcMain.removeHandler('autofill-lookup');
+
+    ipcMain.handle('autofill-lookup', async (event) => {
+        const tab = tabs.findTabByWebContents(event.sender);
+
+        if (!tab) return [];
+
+        const url = tab.view.webContents.getURL();
+
+        if (!isWebUrl(url)) return [];
+
+        const credentials = await credentialStore.findCredentials(url);
+
+        return credentials.map(({ username }) => ({ username }));
+    });
+
+    ipcMain.removeAllListeners('autofill-fill');
+
+    ipcMain.on('autofill-fill', async (event, payload) => {
+        const tab = tabs.findTabByWebContents(event.sender);
+
+        if (!tab) return;
+
+        const username = payload && typeof payload.username === 'string' ? payload.username : '';
+
+        if (!username) return;
+
+        const url = tab.view.webContents.getURL();
+
+        if (!isWebUrl(url)) return;
+
+        const credentials = await credentialStore.findCredentials(url);
+
+        const match = credentials.find((item) => item.username === username);
+
+        if (!match) return;
+
+        await fillCredentialsIntoPage(event.sender, match.username, match.password || '');
+    });
+
+    /*
+        Dismisses an account from the suggestion dropdown without
+        touching the saved credential itself (not the keychain, not the
+        Settings list) — scoped by event.sender exactly like the two
+        handlers above
+    */
+
+    ipcMain.removeAllListeners('autofill-hide-suggestion');
+
+    ipcMain.on('autofill-hide-suggestion', (event, payload) => {
+        const tab = tabs.findTabByWebContents(event.sender);
+
+        if (!tab) return;
+
+        const username = payload && typeof payload.username === 'string' ? payload.username : '';
+
+        if (!username) return;
+
+        const url = tab.view.webContents.getURL();
+
+        if (!isWebUrl(url)) return;
+
+        credentialStore.hideSuggestion(url, username);
+    });
+
     ipcMain.removeAllListeners('set-toolbar-height');
 
     ipcMain.on('set-toolbar-height', (_, height) => {
@@ -771,6 +958,256 @@ function isWebUrl(url) {
     } catch {
         return false;
     }
+}
+
+function hostnameFromUrl(url) {
+    try {
+        return new URL(url).hostname;
+    } catch {
+        return String(url || '').trim();
+    }
+}
+
+function clearSavePasswordPrompt() {
+    if (savePasswordPromptTimer) {
+        clearTimeout(savePasswordPromptTimer);
+
+        savePasswordPromptTimer = null;
+    }
+
+    pendingLoginCapture = null;
+
+    sendToToolbar('save-password-prompt', null);
+}
+
+function hideSavePasswordPrompt() {
+    if (savePasswordPromptTimer) {
+        clearTimeout(savePasswordPromptTimer);
+
+        savePasswordPromptTimer = null;
+    }
+
+    sendToToolbar('save-password-prompt', null);
+}
+
+/*
+    Fills a selection made in the in-page suggestion dropdown. Runs in
+    the tab's own page context, so the password only ever exists there
+    as a live field value — the same as the user typing it themselves.
+*/
+
+async function fillCredentialsIntoPage(webContents, username, password) {
+    if (!webContents || webContents.isDestroyed()) return;
+
+    await webContents.executeJavaScript(`
+        (() => {
+            const username = ${JSON.stringify(username)};
+            const password = ${JSON.stringify(password)};
+
+            /*
+                React (and similar) wrap the native value setter to track
+                what it last saw, so a plain "field.value = x" is invisible
+                to it even with an input event dispatched afterward. Calling
+                the native setter directly, from the prototype rather than
+                the instance, bypasses that wrapper so the framework's own
+                change detection sees a real change.
+            */
+            function setFieldValue(field, value) {
+                const nativeSetter = Object.getOwnPropertyDescriptor(
+                    window.HTMLInputElement.prototype,
+                    'value'
+                ).set;
+                nativeSetter.call(field, value);
+                field.dispatchEvent(new Event('input', { bubbles: true }));
+                field.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
+            const forms = Array.from(document.querySelectorAll('form'));
+            const targetForm = forms.find((form) => {
+                const fields = Array.from(form.querySelectorAll('input'));
+                return fields.some((field) => field.type === 'password');
+            });
+            if (!targetForm) return false;
+            const passwordField = targetForm.querySelector('input[type="password"]');
+            if (!passwordField) return false;
+            const usernameField = Array.from(targetForm.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="password"])'))
+                .find((field) => /user|email|login|account|name/i.test((field.name || '') + (field.id || '') + (field.placeholder || '')));
+            if (usernameField) setFieldValue(usernameField, username);
+            setFieldValue(passwordField, password);
+
+            /*
+                Marks this submission as "used a saved credential
+                unchanged" for the capture script's benefit. Added only
+                after the fill's own dispatches above, so they can't
+                immediately clear it — any later, real edit to either
+                field does, since that means the fields no longer hold
+                what was picked from the suggestion list.
+            */
+
+            targetForm.__webdeskAutofilled = true;
+
+            const clearAutofillMark = () => {
+                targetForm.__webdeskAutofilled = false;
+            };
+
+            passwordField.addEventListener('input', clearAutofillMark, { once: true });
+
+            if (usernameField) {
+                usernameField.addEventListener('input', clearAutofillMark, { once: true });
+            }
+
+            return true;
+        })();
+    `);
+}
+
+function autoSaveCapturedPassword() {
+    if (!autoSavePasswordEnabled) return;
+
+    if (!pendingLoginCapture) return;
+
+    if (!passwordStore.isVaultSetup()) {
+        pendingLoginCapture = null;
+
+        return;
+    }
+
+    if (!passwordStore.isUnlocked()) {
+        pendingLoginCapture = null;
+
+        return;
+    }
+
+    const capture = pendingLoginCapture;
+
+    const result = passwordStore.saveCapturedLogin(capture);
+
+    if (result && result.ok) {
+        pendingLoginCapture = null;
+
+        sendToToolbar('save-password-prompt', null);
+    }
+}
+
+function handleLoginDetected(payload) {
+    if (!payload || typeof payload.password !== 'string' || !payload.password) return;
+
+    const url = String(payload.url || currentUrl()).trim();
+
+    if (!isWebUrl(url)) return;
+
+    const username = String(payload.username || '').trim();
+
+    const capture = {
+        title: String(payload.title || hostnameFromUrl(url)).trim() || hostnameFromUrl(url),
+        url,
+        username,
+        password: payload.password,
+        formFields: Array.isArray(payload.formFields) ? payload.formFields : []
+    };
+
+    if (!passwordStore.shouldStoreCapturedLogin(capture)) {
+        return;
+    }
+
+    const hasExisting = Boolean(
+        passwordStore.isVaultSetup() && username && passwordStore.hasMatchingEntry(url, username)
+    );
+
+    /*
+        A credential picked from the suggestion list, submitted
+        unchanged, is already what's saved — nothing to ask about. Typed
+        in by hand, it always gets asked about, even when it matches an
+        existing entry, since a saved password can only be updated by
+        going through this prompt again with the new one.
+    */
+
+    if (payload.viaAutofill && hasExisting) {
+        return;
+    }
+
+    pendingLoginCapture = capture;
+
+    if (savePasswordPromptTimer) {
+        clearTimeout(savePasswordPromptTimer);
+    }
+
+    sendToToolbar('save-password-prompt', {
+        kind: 'save',
+        hostname: hostnameFromUrl(url),
+        username,
+        updating: hasExisting,
+        seconds: 10
+    });
+
+    savePasswordPromptTimer = setTimeout(() => {
+        clearSavePasswordPrompt();
+    }, 10000);
+}
+
+async function saveCapturedPassword() {
+    if (!pendingLoginCapture) {
+        return { ok: false, error: 'No login details to save' };
+    }
+
+    const capture = pendingLoginCapture;
+
+    if (!passwordStore.isVaultSetup()) {
+        return { ok: false, error: 'Set up your password vault first', needsSetup: true };
+    }
+
+    if (!passwordStore.isUnlocked()) {
+        hideSavePasswordPrompt();
+
+        return { ok: true, queued: true, needsUnlock: true };
+    }
+
+    const result = await credentialStore.saveCredential({
+        origin: capture.url,
+        username: capture.username,
+        password: capture.password
+    });
+
+    if (!result || !result.ok) {
+        clearSavePasswordPrompt();
+
+        return result;
+    }
+
+    const vaultResult = passwordStore.saveCapturedLogin(capture);
+
+    clearSavePasswordPrompt();
+
+    return vaultResult.ok ? { ok: true, id: result.id } : vaultResult;
+}
+
+function openPasswordManagerWithPending() {
+    const tab = tabs.activeTab();
+
+    createPasswordWindow({
+        currentPageUrl: pendingLoginCapture
+            ? pendingLoginCapture.url
+            : tab
+              ? tab.view.webContents.getURL()
+              : '',
+
+        currentPageTitle: pendingLoginCapture
+            ? pendingLoginCapture.title
+            : tab
+              ? tab.view.webContents.getTitle()
+              : '',
+
+        pendingCapture: pendingLoginCapture
+            ? {
+                  title: pendingLoginCapture.title,
+                  url: pendingLoginCapture.url,
+                  username: pendingLoginCapture.username,
+                  password: pendingLoginCapture.password
+              }
+            : null,
+
+        parentWindow: mainWindow
+    });
 }
 
 function openBookmark(url, options = {}) {

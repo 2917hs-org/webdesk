@@ -1,5 +1,7 @@
 const { BrowserView, session } = require('electron');
 
+const path = require('path');
+
 /*
     Holds one view per tab and decides which of them the window is
     showing. What a page then does — where it navigates, what it blocks,
@@ -86,6 +88,16 @@ function activeView() {
     return tab && !tab.view.webContents.isDestroyed() ? tab.view : null;
 }
 
+/*
+    Looks a tab up by its own webContents rather than by id, for IPC
+    senders (like a tab's preload) that only have that to identify
+    themselves with — and that have no reason to know their own tab id
+*/
+
+function findTabByWebContents(webContents) {
+    return tabs.find((tab) => tab.view.webContents === webContents) || null;
+}
+
 function getActiveId() {
     return activeId;
 }
@@ -120,6 +132,8 @@ function createTab(url, options = {}) {
 
     const view = new BrowserView({
         webPreferences: {
+            preload: path.join(__dirname, '../passwords/loginCapturePreload.js'),
+
             contextIsolation: true,
 
             nodeIntegration: false,
@@ -341,6 +355,7 @@ module.exports = {
     applyBounds,
     activeTab,
     activeView,
+    findTabByWebContents,
     getActiveId,
     getTabs
 };

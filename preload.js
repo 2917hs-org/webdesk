@@ -177,5 +177,61 @@ contextBridge.exposeInMainWorld('browserAPI', {
 
     setToolbarHeight(height) {
         ipcRenderer.send('set-toolbar-height', height);
+    },
+
+    openPasswordManager() {
+        ipcRenderer.send('open-password-manager');
+    },
+
+    getPasswordState() {
+        return ipcRenderer.invoke('get-password-state');
+    },
+
+    setupPasswordVault(masterPassword) {
+        return ipcRenderer.invoke('setup-password-vault', masterPassword);
+    },
+
+    unlockPasswordVault(masterPassword) {
+        return ipcRenderer.invoke('unlock-password-vault', masterPassword);
+    },
+
+    lockPasswordVault() {
+        return ipcRenderer.invoke('lock-password-vault');
+    },
+
+    addPassword(entry) {
+        return ipcRenderer.invoke('add-password', entry);
+    },
+
+    updatePassword(id, updates) {
+        return ipcRenderer.invoke('update-password', id, updates);
+    },
+
+    deletePassword(id) {
+        return ipcRenderer.invoke('delete-password', id);
+    },
+
+    copyPassword(id) {
+        return ipcRenderer.invoke('copy-password', id);
+    },
+
+    onPasswordConfig(callback) {
+        ipcRenderer.on('password-config', (_, config) => {
+            callback(config);
+        });
+    },
+
+    saveCapturedPassword() {
+        return ipcRenderer.invoke('save-captured-password');
+    },
+
+    dismissSavePasswordPrompt() {
+        ipcRenderer.send('dismiss-save-password-prompt');
+    },
+
+    onSavePasswordPrompt(callback) {
+        ipcRenderer.on('save-password-prompt', (_, prompt) => {
+            callback(prompt);
+        });
     }
 });
