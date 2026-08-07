@@ -151,11 +151,19 @@
 
                 align-items: center;
 
-                padding: 0 8px;
+                /*
+                    Now the top row, so the left edge leaves room for the
+                    traffic lights (custom-positioned at 12,12) the same
+                    way the tab strip used to
+                */
+
+                padding: 0 8px 0 80px;
 
                 background: var(--toolbar-bg);
 
                 border-bottom: 1px solid var(--separator);
+
+                -webkit-app-region: drag;
             }
 
             .bar-left,
@@ -163,6 +171,8 @@
                 display: flex;
 
                 align-items: center;
+
+                -webkit-app-region: no-drag;
             }
 
             .bar-right {
@@ -232,6 +242,8 @@
                 margin: 0 10px;
 
                 height: 28px;
+
+                -webkit-app-region: no-drag;
             }
 
             #url {
@@ -450,16 +462,6 @@
                 font-size: 9px;
 
                 text-transform: uppercase;
-            }
-
-            /*
-            Focus mode
-        */
-
-            #focus-toggle.on {
-                background: var(--hover);
-
-                color: var(--accent);
             }
 
             /*
@@ -812,11 +814,9 @@
 
                 height: 40px;
 
-                padding: 0 6px 0 80px;
+                padding: 0 6px;
 
                 background: var(--toolbar-bg);
-
-                -webkit-app-region: drag;
             }
 
             #tabs {
@@ -1118,16 +1118,6 @@
     </head>
 
     <body>
-        <div id="tab-strip">
-            <div id="tabs">
-                <div id="tab-drop"></div>
-
-                <button id="new-tab" data-tooltip="New Tab ⌘T">
-                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
-                </button>
-            </div>
-        </div>
-
         <div id="bar">
             <div class="bar-left">
                 <button onclick="browserAPI.back()" data-tooltip="Back">
@@ -1182,8 +1172,6 @@
                     <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.1" cy="10.9" r="2.3"/><path d="M6.8 9.2 13.2 2.8"/><path d="M11.2 4.8l1.5 1.5"/><path d="M9.6 6.4l1.2 1.2"/></svg>
                 </button>
 
-                <button id="focus-toggle" data-tooltip="Focus Mode ⌘⇧F"></button>
-
                 <button id="theme-toggle" data-tooltip="Appearance"></button>
 
                 <!-- <button id="maximise" title="Maximise window">⤢</button> -->
@@ -1203,6 +1191,16 @@
         </div>
 
         <div id="bookmark-bar"><div id="bookmark-drop"></div></div>
+
+        <div id="tab-strip">
+            <div id="tabs">
+                <div id="tab-drop"></div>
+
+                <button id="new-tab" data-tooltip="New Tab ⌘T">
+                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+                </button>
+            </div>
+        </div>
 
         <script>
             /*
@@ -1241,14 +1239,6 @@
                 check: svgIcon('<path d="M3 8.5l3.3 3.3L13 4.2"/>'),
 
                 close: svgIcon('<path d="M4 4l8 8M12 4l-8 8"/>', { size: 10, strokeWidth: 1.6 }),
-
-                focusExpand: svgIcon(
-                    '<path d="M2 6V2h4"/><path d="M10 2h4v4"/><path d="M14 10v4h-4"/><path d="M6 14H2v-4"/>'
-                ),
-
-                focusCompress: svgIcon(
-                    '<path d="M6 2v4H2"/><path d="M10 2v4h4"/><path d="M10 14v-4h4"/><path d="M6 14v-4H2"/>'
-                ),
 
                 themeSystem: svgIcon(
                     '<circle cx="8" cy="8" r="6"/><path d="M8 2a6 6 0 0 1 0 12Z" fill="currentColor" stroke="none"/>'
@@ -2516,35 +2506,6 @@
                 Asked before the main process was listening
             */
                 });
-
-            /*
-        Focus mode
-    */
-
-            const focusToggle = document.getElementById('focus-toggle');
-
-            focusToggle.innerHTML = ICONS.focusExpand;
-
-            function showFocusMode(active) {
-                focusToggle.innerHTML = active ? ICONS.focusCompress : ICONS.focusExpand;
-
-                focusToggle.classList.toggle('on', active);
-
-                focusToggle.dataset.tooltip = 'Focus Mode ⌘⇧F';
-            }
-
-            focusToggle.addEventListener('click', () => {
-                browserAPI.toggleFocusMode().then(showFocusMode);
-            });
-
-            /*
-        The shortcut works from inside the page too, so the button is
-        told rather than assuming it is the only way in or out
-    */
-
-            browserAPI.onFocusModeChange(showFocusMode);
-
-            showFocusMode(false);
 
             /*
         Appearance

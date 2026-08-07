@@ -304,6 +304,60 @@ function setupVault(masterPassword) {
     return { ok: true };
 }
 
+/*
+    Re-encrypts every entry under the same fixed key an unprotected
+    vault always uses, then drops the chosen password entirely — the
+    reverse of setupVault. Re-derives from the given password rather
+    than trusting the in-memory derivedKey, so this can't be done
+    without proving the current password even from an already-unlocked
+    window left open.
+*/
+
+function removeMasterPassword(currentPassword) {
+    ensureAccessible();
+
+    const vault = getVault();
+
+    if (!isProtected(vault)) {
+        return { ok: false, error: 'No master password is set' };
+    }
+
+    const oldSalt = Buffer.from(vault.salt, 'base64');
+
+    const oldKey = deriveKey(currentPassword, oldSalt);
+
+    if (oldKey.toString('base64') !== vault.verifier) {
+        return { ok: false, error: 'Incorrect master password' };
+    }
+
+    const newSalt = crypto.randomBytes(SALT_LENGTH);
+
+    const newKey = deriveKey(DEFAULT_KEY_MATERIAL, newSalt);
+
+    const entries = vault.entries.map((entry) => {
+        if (!entry.passwordEnc) return entry;
+
+        try {
+            const plain = decrypt(entry.passwordEnc, oldKey);
+
+            return { ...entry, passwordEnc: encrypt(plain, newKey) };
+        } catch {
+            return entry;
+        }
+    });
+
+    derivedKey = newKey;
+
+    saveVault({
+        salt: newSalt.toString('base64'),
+        verifier: newKey.toString('base64'),
+        protected: false,
+        entries
+    });
+
+    return { ok: true };
+}
+
 function unlockVault(masterPassword) {
     const vault = getVault();
 
@@ -593,6 +647,7 @@ module.exports = {
     isVaultProtected,
     isUnlocked,
     setupVault,
+    removeMasterPassword,
     unlockVault,
     lockVault,
     getEntries,
