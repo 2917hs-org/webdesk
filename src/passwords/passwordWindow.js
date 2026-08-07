@@ -27,11 +27,11 @@ function createPasswordWindow(options) {
     const hasParent = parentWindow && !parentWindow.isDestroyed();
 
     passwordWindow = new BrowserWindow({
-        width: 480,
+        width: 600,
 
         height: 560,
 
-        minWidth: 400,
+        minWidth: 520,
 
         minHeight: 420,
 
@@ -49,6 +49,13 @@ function createPasswordWindow(options) {
         parent: hasParent ? parentWindow : undefined,
 
         modal: hasParent,
+
+        /*
+            Translucent panel material, matching a native macOS dialog
+            rather than a flat opaque one
+        */
+
+        vibrancy: 'popover',
 
         webPreferences: {
             preload: path.join(__dirname, '../../preload.js'),

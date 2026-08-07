@@ -4,6 +4,8 @@ const path = require('path');
 
 const { setWebsiteUrl } = require('../config/appConfig');
 
+const passwordStore = require('../passwords/passwordStore');
+
 /*
     Opened empty on first launch, and again later to change the site the
     app is pinned to. Only one may be open at a time, so the handlers
@@ -31,23 +33,45 @@ function createSetupWindow(options) {
         return setupWindow;
     }
 
+    /*
+        Offered here too, not just from the Password Manager's own
+        link, so a first-time user can protect the vault with a master
+        password in the same breath as picking a site — but only when
+        there is a choice to make. A vault with no master password
+        chosen yet needs no setup step at all, and one that is already
+        protected has nothing to offer here without an unlock step
+        this window doesn't have.
+    */
+
+    const vaultSetupNeeded = !passwordStore.isVaultProtected();
+
     setupWindow = new BrowserWindow({
         width: 420,
 
         /*
             Sized to the content, which is one row taller when there is
-            an open page to offer
+            an open page to offer, and taller again when the vault
+            section is showing
         */
 
-        height: currentPageUrl ? 267 : 245,
+        height: (currentPageUrl ? 267 : 245) + (vaultSetupNeeded ? 210 : 0),
+
+        minHeight: currentPageUrl ? 267 : 245,
 
         title: currentUrl ? 'Change Homepage' : 'WebDesk Setup',
 
-        resizable: false,
+        resizable: true,
 
         center: true,
 
         show: true,
+
+        /*
+            Translucent panel material, matching the Password Manager's
+            dialog treatment rather than a flat opaque one
+        */
+
+        vibrancy: 'popover',
 
         webPreferences: {
             preload: path.join(__dirname, '../../preload.js'),
@@ -69,7 +93,11 @@ function createSetupWindow(options) {
 
     ipcMain.removeHandler('get-setup-config');
 
-    ipcMain.handle('get-setup-config', () => ({ currentUrl, currentPageUrl }));
+    ipcMain.handle('get-setup-config', () => ({
+        currentUrl,
+        currentPageUrl,
+        vaultProtected: passwordStore.isVaultProtected()
+    }));
 
     ipcMain.removeAllListeners('save-url');
 

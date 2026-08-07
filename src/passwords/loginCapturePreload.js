@@ -86,13 +86,21 @@ const CAPTURE_SCRIPT = `
     function reportCapture(form) {
         const payload = buildCapturePayload(form);
 
+        console.log('[save-password-debug] reportCapture, payload built:', Boolean(payload));
+
         if (!payload) return;
 
         const now = Date.now();
 
-        if (now - lastCaptureAt < 2000) return;
+        if (now - lastCaptureAt < 2000) {
+            console.log('[save-password-debug] SKIPPED: throttled (within 2s of last capture)');
+
+            return;
+        }
 
         lastCaptureAt = now;
+
+        console.log('[save-password-debug] posting capture message to preload bridge');
 
         window.postMessage(payload, '*');
     }
@@ -119,6 +127,11 @@ const CAPTURE_SCRIPT = `
     document.addEventListener(
         'submit',
         function (event) {
+            console.log(
+                '[save-password-debug] submit event seen, isForm:',
+                event.target instanceof HTMLFormElement
+            );
+
             if (!(event.target instanceof HTMLFormElement)) return;
 
             maybeCaptureFromForm(event.target);
@@ -389,6 +402,8 @@ function injectCaptureScript() {
     if (window.__webdeskLoginCaptureInjected) return;
 
     window.__webdeskLoginCaptureInjected = true;
+
+    console.log('[save-password-debug] injectCaptureScript running on', location.href);
 
     const script = document.createElement('script');
 

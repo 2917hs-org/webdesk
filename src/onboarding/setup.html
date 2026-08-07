@@ -3,33 +3,103 @@
 <html>
 <head>
     <style>
+        :root {
+            --bg: rgba(255, 255, 255, 0.6);
+
+            --text-primary: #1d1d1f;
+
+            --text-secondary: #6e6e73;
+
+            --field-bg: rgba(255, 255, 255, 0.7);
+
+            --field-border: rgba(0, 0, 0, 0.15);
+
+            --accent: #007aff;
+
+            --accent-hover: #0066d6;
+
+            --hover: rgba(0, 0, 0, 0.06);
+
+            --active: rgba(0, 0, 0, 0.12);
+
+            --danger: #ff3b30;
+
+            --tooltip-bg: rgba(250, 250, 250, 0.96);
+
+            --tooltip-shadow: 0 1px 4px rgba(0, 0, 0, 0.16), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: rgba(30, 30, 32, 0.5);
+
+                --text-primary: #f5f5f7;
+
+                --text-secondary: #98989d;
+
+                --field-bg: rgba(255, 255, 255, 0.08);
+
+                --field-border: rgba(255, 255, 255, 0.16);
+
+                --accent: #0a84ff;
+
+                --accent-hover: #3a9dff;
+
+                --hover: rgba(255, 255, 255, 0.09);
+
+                --active: rgba(255, 255, 255, 0.16);
+
+                --danger: #ff453a;
+
+                --tooltip-bg: rgba(45, 45, 48, 0.96);
+
+                --tooltip-shadow: 0 1px 4px rgba(0, 0, 0, 0.45), 0 0 0 0.5px rgba(255, 255, 255, 0.08);
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         /*
             The window is the dialog, rather than a floating card inside
             it, so nothing is framed by dead space
         */
 
         body {
-            box-sizing: border-box;
-
             margin: 0;
 
             padding: 20px;
 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
-            background: white;
+            background: var(--bg);
+
+            color: var(--text-primary);
+
+            -webkit-font-smoothing: antialiased;
+
+            /*
+                A safety net rather than a design choice — the window is
+                sized for its content up front, this just means nothing
+                is ever clipped if that estimate runs a little short
+            */
+
+            overflow-y: auto;
         }
 
         h1 {
             margin: 0 0 6px;
 
-            font-size: 20px;
+            font-size: 18px;
+
+            font-weight: 600;
         }
 
         p {
             margin: 0 0 16px;
 
-            color: #666;
+            color: var(--text-secondary);
 
             font-size: 13px;
         }
@@ -42,22 +112,34 @@
             font-size: 12px;
 
             font-weight: 600;
+
+            color: var(--text-secondary);
         }
 
         input {
             width: 100%;
 
-            height: 34px;
+            height: 30px;
 
             font-size: 13px;
 
             padding-left: 10px;
 
-            box-sizing: border-box;
-
             border-radius: 6px;
 
-            border: 1px solid #ccc;
+            border: 1px solid var(--field-border);
+
+            background: var(--field-bg);
+
+            color: var(--text-primary);
+
+            outline: none;
+        }
+
+        input:focus {
+            border-color: var(--accent);
+
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
         }
 
         /*
@@ -76,31 +158,33 @@
         button {
             flex: 1;
 
-            height: 34px;
+            height: 30px;
 
             border: none;
 
             border-radius: 6px;
 
-            background: #007aff;
+            background: var(--accent);
 
-            color: white;
+            color: #ffffff;
 
             font-size: 13px;
 
             cursor: pointer;
         }
 
+        button:hover {
+            background: var(--accent-hover);
+        }
+
         #useCurrent {
-            border: 1px solid #007aff;
+            background: var(--hover);
 
-            background: white;
-
-            color: #007aff;
+            color: var(--text-primary);
         }
 
         #useCurrent:hover {
-            background: #f0f6ff;
+            background: var(--active);
         }
 
         #useCurrent[hidden] {
@@ -122,13 +206,100 @@
         #currentPage[hidden] {
             display: none;
         }
+
+        #vault-section {
+            display: flex;
+
+            flex-direction: column;
+
+            gap: 12px;
+
+            margin-top: 16px;
+        }
+
+        #vault-section[hidden] {
+            display: none;
+        }
+
+        .divider {
+            border: none;
+
+            border-top: 1px solid var(--field-border);
+
+            margin: 0;
+        }
+
+        #vault-hint {
+            margin: 0;
+
+            font-size: 12px;
+
+            color: var(--text-secondary);
+        }
+
+        .error {
+            margin: 0;
+
+            color: var(--danger);
+
+            font-size: 12px;
+        }
+
+        .error[hidden] {
+            display: none;
+        }
+
+        /*
+            Same fast, themed tooltip as the rest of the app, standing in
+            for the browser's own slow title-attribute one
+        */
+
+        #tooltip-bubble {
+            position: fixed;
+
+            z-index: 9999;
+
+            max-width: 260px;
+
+            padding: 4px 8px;
+
+            border-radius: 6px;
+
+            background: var(--tooltip-bg);
+
+            color: var(--text-primary);
+
+            border: 1px solid var(--field-border);
+
+            box-shadow: var(--tooltip-shadow);
+
+            font-size: 11.5px;
+
+            line-height: 1.35;
+
+            white-space: pre-line;
+
+            pointer-events: none;
+
+            opacity: 0;
+
+            transform: translateY(2px);
+
+            transition: opacity 0.1s ease, transform 0.1s ease;
+        }
+
+        #tooltip-bubble.visible {
+            opacity: 1;
+
+            transform: translateY(0);
+        }
     </style>
 </head>
 
 <body>
 <h1 id="heading">Welcome to WebDesk</h1>
 
-<p id="intro">Create a dedicated desktop app for your favorite website.</p>
+<p id="intro">Turn any website into a focused desktop app of its own.</p>
 
 <label> Website URL </label>
 
@@ -136,6 +307,29 @@
     <input id="websiteUrl" placeholder="https://example.com" />
 
     <p id="currentPage" hidden>Currently open: <span id="currentPageUrl"></span></p>
+
+    <div id="vault-section" hidden>
+        <hr class="divider" />
+
+        <div>
+            <label for="vaultPassword">Master password</label>
+
+            <input id="vaultPassword" type="password" autocomplete="new-password" />
+        </div>
+
+        <div>
+            <label for="vaultConfirm">Confirm master password</label>
+
+            <input id="vaultConfirm" type="password" autocomplete="new-password" />
+        </div>
+
+        <p id="vault-hint">
+            Optional — lets WebDesk save and autofill website logins. Leave blank to set
+            this up later from the key icon in the toolbar.
+        </p>
+
+        <div id="vault-error" class="error" hidden></div>
+    </div>
 
     <div class="actions">
         <button id="useCurrent" type="button" hidden>Use current page</button>
@@ -145,11 +339,157 @@
 </form>
 
 <script>
+    /*
+        Delegated so it needs no per-element wiring — the same tooltip
+        engine used in the toolbar and Password Manager windows
+    */
+
+    const tooltipBubble = document.createElement('div');
+
+    tooltipBubble.id = 'tooltip-bubble';
+
+    document.body.appendChild(tooltipBubble);
+
+    let tooltipTimer = null;
+
+    let tooltipActiveEl = null;
+
+    function tooltipTargetFor(node) {
+        return node && node.closest ? node.closest('[data-tooltip]') : null;
+    }
+
+    function positionTooltip(target) {
+        const rect = target.getBoundingClientRect();
+
+        const bubbleRect = tooltipBubble.getBoundingClientRect();
+
+        /*
+            Above the icon by default; only drops below when there
+            isn't room above
+        */
+
+        let top = rect.top - bubbleRect.height - 6;
+
+        if (top < 2) {
+            top = rect.bottom + 6;
+        }
+
+        top = Math.max(2, top);
+
+        let left = rect.left + rect.width / 2 - bubbleRect.width / 2;
+
+        left = Math.max(4, Math.min(left, window.innerWidth - bubbleRect.width - 4));
+
+        tooltipBubble.style.top = top + 'px';
+
+        tooltipBubble.style.left = left + 'px';
+    }
+
+    function showTooltip(target) {
+        tooltipBubble.textContent = target.dataset.tooltip;
+
+        tooltipBubble.classList.add('visible');
+
+        positionTooltip(target);
+    }
+
+    function hideTooltip() {
+        clearTimeout(tooltipTimer);
+
+        tooltipTimer = null;
+
+        tooltipActiveEl = null;
+
+        tooltipBubble.classList.remove('visible');
+    }
+
+    document.addEventListener('mouseover', (event) => {
+        const target = tooltipTargetFor(event.target);
+
+        if (!target || target === tooltipActiveEl) return;
+
+        hideTooltip();
+
+        tooltipActiveEl = target;
+
+        tooltipTimer = setTimeout(() => showTooltip(target), 450);
+    });
+
+    document.addEventListener('mouseout', (event) => {
+        if (!tooltipActiveEl) return;
+
+        if (tooltipTargetFor(event.target) !== tooltipActiveEl) return;
+
+        const to = event.relatedTarget;
+
+        if (to && tooltipActiveEl.contains(to)) return;
+
+        hideTooltip();
+    });
+
+    document.addEventListener('mousedown', hideTooltip);
+
     const input = document.getElementById('websiteUrl');
 
     const button = document.getElementById('save');
 
-    function validateAndSave() {
+    const vaultSection = document.getElementById('vault-section');
+
+    const vaultPasswordInput = document.getElementById('vaultPassword');
+
+    const vaultConfirmInput = document.getElementById('vaultConfirm');
+
+    const vaultErrorEl = document.getElementById('vault-error');
+
+    function showVaultError(message) {
+        if (!message) {
+            vaultErrorEl.hidden = true;
+            vaultErrorEl.textContent = '';
+            return;
+        }
+
+        vaultErrorEl.hidden = false;
+        vaultErrorEl.textContent = message;
+    }
+
+    /*
+        Only offered when there isn't a vault yet — once one exists this
+        section stays hidden and setup is skipped outright, since a
+        second vault can't be created over the first
+    */
+
+    async function maybeSetupVault() {
+        if (vaultSection.hidden) return true;
+
+        const masterPassword = vaultPasswordInput.value;
+        const confirmPassword = vaultConfirmInput.value;
+
+        showVaultError('');
+
+        /*
+            Left blank on purpose — the vault can still be created later
+            from the key icon, so an empty pair here isn't an error
+        */
+
+        if (!masterPassword && !confirmPassword) return true;
+
+        if (masterPassword !== confirmPassword) {
+            showVaultError('Passwords do not match');
+            vaultConfirmInput.focus();
+            return false;
+        }
+
+        const result = await window.browserAPI.setupPasswordVault(masterPassword);
+
+        if (!result || !result.ok) {
+            showVaultError(result && result.error ? result.error : 'Could not create vault');
+            return false;
+        }
+
+        return true;
+    }
+
+    async function validateAndSave() {
         let url = input.value.trim();
 
         if (url.length === 0) {
@@ -186,6 +526,8 @@
             input.focus();
             return;
         }
+
+        if (!(await maybeSetupVault())) return;
 
         window.browserAPI.saveUrl(url);
     }
@@ -229,6 +571,10 @@
                 input.select();
             }
 
+            if (config.vaultProtected === false) {
+                vaultSection.hidden = false;
+            }
+
             if (!isOfferable(config.currentPageUrl)) return;
 
             document.getElementById('currentPageUrl').textContent = config.currentPageUrl;
@@ -237,7 +583,7 @@
 
             useCurrent.hidden = false;
 
-            useCurrent.title = config.currentPageUrl;
+            useCurrent.dataset.tooltip = config.currentPageUrl;
 
             /*
                 Fills the field rather than saving outright, so the URL
@@ -256,14 +602,17 @@
             */
         });
 
-    button.addEventListener('click', validateAndSave);
+    /*
+        A submit handler, rather than a click listener plus a lone
+        keydown check on the URL field, so Enter in the new password
+        fields also runs validation instead of triggering the form's
+        own default submission
+    */
 
-    input.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
-            event.preventDefault();
+    document.getElementById('setupForm').addEventListener('submit', (event) => {
+        event.preventDefault();
 
-            validateAndSave();
-        }
+        validateAndSave();
     });
 
     input.focus();

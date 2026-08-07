@@ -43,6 +43,24 @@ function createMainWindow() {
 
         show: false,
 
+        /*
+            The native title bar is dropped in favour of merging the
+            traffic lights into our own tab row, the way Safari and Arc
+            do, rather than stacking a second row of chrome underneath
+            a full OS title bar
+        */
+
+        titleBarStyle: 'hiddenInset',
+
+        trafficLightPosition: { x: 12, y: 12 },
+
+        /*
+            Translucent header material so the merged title/tab row
+            reads as native macOS chrome instead of a flat panel
+        */
+
+        vibrancy: 'header',
+
         webPreferences: {
             preload: path.join(__dirname, '../../preload.js'),
 
@@ -61,6 +79,17 @@ function createMainWindow() {
     */
 
     mainWindow.loadFile(path.join(__dirname, '../toolbar/toolbar.html'));
+
+    /*
+        TEMPORARY: forwards the toolbar page's own console.log calls into
+        this terminal, so renderer-side debug output shows up alongside
+        the main process's without needing DevTools open. Remove once
+        the save-password investigation is done.
+    */
+
+    mainWindow.webContents.on('console-message', (event, level, message) => {
+        console.log('[toolbar-console]', message);
+    });
 
     mainWindow.once('ready-to-show', () => {
         mainWindow.show();
