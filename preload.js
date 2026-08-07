@@ -233,5 +233,19 @@ contextBridge.exposeInMainWorld('browserAPI', {
         ipcRenderer.on('save-password-prompt', (_, prompt) => {
             callback(prompt);
         });
+    },
+
+    getThemeSource() {
+        return ipcRenderer.invoke('get-theme-source');
+    },
+
+    showThemeMenu() {
+        ipcRenderer.send('show-theme-menu');
+    },
+
+    onThemeChange(callback) {
+        ipcRenderer.on('theme-changed', (_, theme) => {
+            callback(theme);
+        });
     }
 });

@@ -20,7 +20,13 @@ const adblocker = require('../privacy/adblocker');
 
 const tabs = require('../tabs/tabManager');
 
-const TOOLBAR_HEIGHT = 50;
+/*
+    Fallback floor only — the real height is measured live by
+    syncToolbarHeight() in toolbar.html once it has laid out the merged
+    title/tab row plus the address row
+*/
+
+const TOOLBAR_HEIGHT = 80;
 
 /*
     Kept rather than looked up, so what the toolbar is told cannot end
@@ -114,6 +120,16 @@ function createBrowserView(window) {
 
 function registerNavigationEvents(tab) {
     const contents = tab.view.webContents;
+
+    /*
+        TEMPORARY: forwards this tab's own console.log calls (including
+        the injected login-capture script's) into this terminal. Remove
+        once the save-password investigation is done.
+    */
+
+    contents.on('console-message', (event, level, message) => {
+        console.log('[tab-console]', message);
+    });
 
     contents.on('did-start-loading', () => {
         tab.loading = true;
@@ -404,6 +420,81 @@ function registerBrowserEvents() {
 }
 
 /*
+    The vault itself — setup, unlock, lock, and CRUD on entries — has no
+    dependency on a browser tab or the main window existing, unlike
+    everything else in registerToolbarEvents below. Registered once at
+    app startup instead, so it's already there for the setup window on
+    a first launch, before the main window (and its BrowserView) has
+    been created at all.
+*/
+
+function registerPasswordVaultEvents() {
+    ipcMain.removeHandler('get-password-state');
+
+    ipcMain.handle('get-password-state', () => passwordStore.passwordState());
+
+    ipcMain.removeHandler('setup-password-vault');
+
+    ipcMain.handle('setup-password-vault', async (_, masterPassword) => {
+        const result = passwordStore.setupVault(masterPassword);
+
+        if (result && result.ok && pendingLoginCapture) {
+            await saveCapturedPassword();
+        }
+
+        return result;
+    });
+
+    ipcMain.removeHandler('unlock-password-vault');
+
+    ipcMain.handle('unlock-password-vault', async (_, masterPassword) => {
+        const result = passwordStore.unlockVault(masterPassword);
+
+        if (result && result.ok && pendingLoginCapture) {
+            await saveCapturedPassword();
+        }
+
+        return result;
+    });
+
+    ipcMain.removeHandler('lock-password-vault');
+
+    ipcMain.handle('lock-password-vault', () => passwordStore.lockVault());
+
+    ipcMain.removeHandler('add-password');
+
+    ipcMain.handle('add-password', (_, entry) => passwordStore.addEntry(entry));
+
+    ipcMain.removeHandler('update-password');
+
+    ipcMain.handle('update-password', (_, id, updates) => passwordStore.updateEntry(id, updates));
+
+    ipcMain.removeHandler('delete-password');
+
+    ipcMain.handle('delete-password', async (_, id) => {
+        const result = passwordStore.deleteEntry(id);
+
+        if (result.ok && result.url && result.username) {
+            await credentialStore.deleteCredential(result.url, result.username);
+        }
+
+        return result;
+    });
+
+    ipcMain.removeHandler('copy-password');
+
+    ipcMain.handle('copy-password', (_, id) => {
+        const result = passwordStore.getEntryPassword(id);
+
+        if (!result.ok) return result;
+
+        clipboard.writeText(result.password);
+
+        return { ok: true };
+    });
+}
+
+/*
     Registered up front, so the toolbar always has someone to answer
     it and does not depend on catching the first navigation event
 */
@@ -655,74 +746,14 @@ function registerToolbarEvents(window) {
         });
     });
 
-    ipcMain.removeHandler('get-password-state');
-
-    ipcMain.handle('get-password-state', () => passwordStore.passwordState());
-
-    ipcMain.removeHandler('setup-password-vault');
-
-    ipcMain.handle('setup-password-vault', async (_, masterPassword) => {
-        const result = passwordStore.setupVault(masterPassword);
-
-        if (result && result.ok && pendingLoginCapture) {
-            await saveCapturedPassword();
-        }
-
-        return result;
-    });
-
-    ipcMain.removeHandler('unlock-password-vault');
-
-    ipcMain.handle('unlock-password-vault', async (_, masterPassword) => {
-        const result = passwordStore.unlockVault(masterPassword);
-
-        if (result && result.ok && pendingLoginCapture) {
-            await saveCapturedPassword();
-        }
-
-        return result;
-    });
-
-    ipcMain.removeHandler('lock-password-vault');
-
-    ipcMain.handle('lock-password-vault', () => passwordStore.lockVault());
-
-    ipcMain.removeHandler('add-password');
-
-    ipcMain.handle('add-password', (_, entry) => passwordStore.addEntry(entry));
-
-    ipcMain.removeHandler('update-password');
-
-    ipcMain.handle('update-password', (_, id, updates) => passwordStore.updateEntry(id, updates));
-
-    ipcMain.removeHandler('delete-password');
-
-    ipcMain.handle('delete-password', async (_, id) => {
-        const result = passwordStore.deleteEntry(id);
-
-        if (result.ok && result.url && result.username) {
-            await credentialStore.deleteCredential(result.url, result.username);
-        }
-
-        return result;
-    });
-
-    ipcMain.removeHandler('copy-password');
-
-    ipcMain.handle('copy-password', (_, id) => {
-        const result = passwordStore.getEntryPassword(id);
-
-        if (!result.ok) return result;
-
-        clipboard.writeText(result.password);
-
-        return { ok: true };
-    });
-
     ipcMain.removeAllListeners('login-detected');
 
     ipcMain.on('login-detected', (event, payload) => {
         const active = tabs.activeTab();
+
+        console.log('[save-password-debug] login-detected IPC received', {
+            isActiveTab: Boolean(active) && active.view.webContents === event.sender
+        });
 
         if (!active || active.view.webContents !== event.sender) return;
 
@@ -1090,11 +1121,26 @@ function autoSaveCapturedPassword() {
 }
 
 function handleLoginDetected(payload) {
-    if (!payload || typeof payload.password !== 'string' || !payload.password) return;
+    console.log('[save-password-debug] handleLoginDetected called with:', {
+        hasPassword: Boolean(payload && typeof payload.password === 'string' && payload.password),
+        url: payload && payload.url,
+        username: payload && payload.username,
+        viaAutofill: payload && payload.viaAutofill
+    });
+
+    if (!payload || typeof payload.password !== 'string' || !payload.password) {
+        console.log('[save-password-debug] REJECTED: no password in payload');
+
+        return;
+    }
 
     const url = String(payload.url || currentUrl()).trim();
 
-    if (!isWebUrl(url)) return;
+    if (!isWebUrl(url)) {
+        console.log('[save-password-debug] REJECTED: not a web url ->', url);
+
+        return;
+    }
 
     const username = String(payload.username || '').trim();
 
@@ -1107,6 +1153,11 @@ function handleLoginDetected(payload) {
     };
 
     if (!passwordStore.shouldStoreCapturedLogin(capture)) {
+        console.log('[save-password-debug] REJECTED: shouldStoreCapturedLogin returned false', {
+            url,
+            formFields: capture.formFields
+        });
+
         return;
     }
 
@@ -1123,6 +1174,8 @@ function handleLoginDetected(payload) {
     */
 
     if (payload.viaAutofill && hasExisting) {
+        console.log('[save-password-debug] REJECTED: viaAutofill + already has matching entry');
+
         return;
     }
 
@@ -1131,6 +1184,8 @@ function handleLoginDetected(payload) {
     if (savePasswordPromptTimer) {
         clearTimeout(savePasswordPromptTimer);
     }
+
+    console.log('[save-password-debug] SENDING prompt to toolbar for', hostnameFromUrl(url));
 
     sendToToolbar('save-password-prompt', {
         kind: 'save',
@@ -1309,5 +1364,6 @@ function attachResizeHandler(window) {
 
 module.exports = {
     createBrowserView,
-    attachResizeHandler
+    attachResizeHandler,
+    registerPasswordVaultEvents
 };
