@@ -73,10 +73,6 @@ contextBridge.exposeInMainWorld('browserAPI', {
         });
     },
 
-    toggleFocusMode() {
-        return ipcRenderer.invoke('toggle-focus-mode');
-    },
-
     toggleMaximise() {
         return ipcRenderer.invoke('toggle-maximise');
     },
@@ -88,12 +84,6 @@ contextBridge.exposeInMainWorld('browserAPI', {
     onMaximiseChange(callback) {
         ipcRenderer.on('maximise-changed', (_, maximised) => {
             callback(maximised);
-        });
-    },
-
-    onFocusModeChange(callback) {
-        ipcRenderer.on('focus-mode-changed', (_, active) => {
-            callback(active);
         });
     },
 
@@ -193,6 +183,10 @@ contextBridge.exposeInMainWorld('browserAPI', {
 
     unlockPasswordVault(masterPassword) {
         return ipcRenderer.invoke('unlock-password-vault', masterPassword);
+    },
+
+    removeMasterPassword(currentPassword) {
+        return ipcRenderer.invoke('remove-master-password', currentPassword);
     },
 
     lockPasswordVault() {

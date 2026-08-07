@@ -11,8 +11,6 @@ const { createPasswordWindow } = require('../passwords/passwordWindow');
 const passwordStore = require('../passwords/passwordStore');
 const credentialStore = require('../passwords/credentialStore');
 
-const focusMode = require('../focus/focusMode');
-
 const searchEngines = require('../search/searchEngines');
 const adblockStore = require('../privacy/adblockStore');
 
@@ -445,6 +443,12 @@ function registerPasswordVaultEvents() {
         return result;
     });
 
+    ipcMain.removeHandler('remove-master-password');
+
+    ipcMain.handle('remove-master-password', (_, currentPassword) =>
+        passwordStore.removeMasterPassword(currentPassword)
+    );
+
     ipcMain.removeHandler('unlock-password-vault');
 
     ipcMain.handle('unlock-password-vault', async (_, masterPassword) => {
@@ -552,18 +556,6 @@ function registerToolbarEvents(window) {
     ipcMain.on('move-tab', (_, id, toIndex) => {
         tabs.moveTab(id, toIndex);
     });
-
-    focusMode.attachFocusMode(window, (active) => {
-        sendToToolbar('focus-mode-changed', active);
-
-        resizeBrowserView();
-    });
-
-    ipcMain.removeHandler('toggle-focus-mode');
-
-    ipcMain.handle('toggle-focus-mode', () =>
-        focusMode.isActive() ? focusMode.exitFocusMode() : focusMode.enterFocusMode()
-    );
 
     /*
         The same thing the green button does: fill the screen, and give
@@ -893,22 +885,6 @@ function handleShortcut(event, input) {
             bookmarkStore.setBarVisible(!bookmarkStore.isBarVisible());
 
             sendToToolbar('bookmark-state', bookmarkState());
-        }
-
-        /*
-            Way out of focus mode that does not depend on being able to
-            reach the toolbar. Escape is left alone, since the editors
-            on the timed sites use it.
-        */
-
-        if (key === 'f') {
-            event.preventDefault();
-
-            if (focusMode.isActive()) {
-                focusMode.exitFocusMode();
-            } else {
-                focusMode.enterFocusMode();
-            }
         }
 
         return;
