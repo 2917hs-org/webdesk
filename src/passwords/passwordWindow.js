@@ -16,13 +16,15 @@ function createPasswordWindow(options) {
 
     const currentPageTitle = (options && options.currentPageTitle) || '';
 
-    const pendingCapture = (options && options.pendingCapture) || null;
+    const parentWindow = options && options.parentWindow;
 
     if (passwordWindow) {
         passwordWindow.focus();
 
         return passwordWindow;
     }
+
+    const hasParent = parentWindow && !parentWindow.isDestroyed();
 
     passwordWindow = new BrowserWindow({
         width: 480,
@@ -39,6 +41,15 @@ function createPasswordWindow(options) {
 
         show: true,
 
+        /*
+            Blocks the main window while passwords are open, the way a
+            dialog does, rather than leaving it clickable underneath
+        */
+
+        parent: hasParent ? parentWindow : undefined,
+
+        modal: hasParent,
+
         webPreferences: {
             preload: path.join(__dirname, '../../preload.js'),
 
@@ -52,19 +63,29 @@ function createPasswordWindow(options) {
 
     passwordWindow.loadFile(path.join(__dirname, 'passwords.html'));
 
+    /*
+        Being modal, this window has no other window to fall back to
+        closing it from — Escape has to do that job itself
+    */
+
+    passwordWindow.webContents.on('before-input-event', (event, input) => {
+        if (input.type !== 'keyDown' || input.key !== 'Escape') return;
+
+        if (!passwordWindow || passwordWindow.isDestroyed()) return;
+
+        passwordWindow.close();
+    });
+
     passwordWindow.webContents.on('did-finish-load', () => {
         if (!passwordWindow || passwordWindow.isDestroyed()) return;
 
         passwordWindow.webContents.send('password-config', {
             currentPageUrl,
-            currentPageTitle,
-            pendingCapture
+            currentPageTitle
         });
     });
 
     passwordWindow.on('closed', () => {
-        passwordStore.lockVault();
-
         passwordWindow = null;
     });
 

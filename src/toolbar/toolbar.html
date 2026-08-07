@@ -470,11 +470,11 @@
 
                 padding: 6px 12px;
 
-                background: #303134;
+                background: #2e7d32;
 
-                border-bottom: 1px solid #3c4043;
+                border-bottom: 1px solid #1b5e20;
 
-                color: #e8eaed;
+                color: #f1f8e9;
 
                 font-size: 13px;
             }
@@ -496,7 +496,7 @@
             }
 
             #save-password-prompt-timer {
-                color: #9aa0a6;
+                color: #c8e6c9;
 
                 font-size: 12px;
 
@@ -870,8 +870,82 @@
 
             let currentUrl = '';
 
+            let savePasswordPromptState = null;
+
+            let savePasswordPromptTimerId = null;
+
             function isEditing() {
                 return document.activeElement === urlBox;
+            }
+
+            function clearSavePasswordPromptUi() {
+                const prompt = document.getElementById('save-password-prompt');
+
+                const text = document.getElementById('save-password-prompt-text');
+
+                const timer = document.getElementById('save-password-prompt-timer');
+
+                if (savePasswordPromptTimerId) {
+                    clearInterval(savePasswordPromptTimerId);
+
+                    savePasswordPromptTimerId = null;
+                }
+
+                savePasswordPromptState = null;
+
+                prompt.classList.remove('visible');
+
+                text.textContent = '';
+
+                timer.textContent = '';
+
+                syncToolbarHeight();
+            }
+
+            function renderSavePasswordPrompt(prompt) {
+                const promptElement = document.getElementById('save-password-prompt');
+
+                const textElement = document.getElementById('save-password-prompt-text');
+
+                const timerElement = document.getElementById('save-password-prompt-timer');
+
+                if (!prompt) {
+                    clearSavePasswordPromptUi();
+
+                    return;
+                }
+
+                const username = prompt.username || prompt.hostname || 'this site';
+
+                const seconds = Math.max(1, Number(prompt.seconds) || 10);
+
+                savePasswordPromptState = { seconds };
+
+                textElement.textContent = `${prompt.updating ? 'Update' : 'Save'} password for ${username}?`;
+
+                timerElement.textContent = `${seconds}s`;
+
+                promptElement.classList.add('visible');
+
+                if (savePasswordPromptTimerId) {
+                    clearInterval(savePasswordPromptTimerId);
+                }
+
+                savePasswordPromptTimerId = setInterval(() => {
+                    if (!savePasswordPromptState) return;
+
+                    savePasswordPromptState.seconds -= 1;
+
+                    if (savePasswordPromptState.seconds <= 0) {
+                        clearSavePasswordPromptUi();
+
+                        return;
+                    }
+
+                    timerElement.textContent = `${savePasswordPromptState.seconds}s`;
+                }, 1000);
+
+                syncToolbarHeight();
             }
 
             /*
@@ -1586,6 +1660,18 @@
             document.getElementById('passwords').addEventListener('click', () => {
                 browserAPI.openPasswordManager();
             });
+
+            document.getElementById('save-password-save').addEventListener('click', async () => {
+                await browserAPI.saveCapturedPassword();
+
+                clearSavePasswordPromptUi();
+            });
+
+            document.getElementById('save-password-dismiss').addEventListener('click', () => {
+                browserAPI.dismissSavePasswordPrompt();
+            });
+
+            browserAPI.onSavePasswordPrompt(renderSavePasswordPrompt);
 
             /*
         Deleting from the context menu and the bar's shortcut both act

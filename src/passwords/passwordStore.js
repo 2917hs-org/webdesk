@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const store = require('../storage/settingsStore');
 
 const VAULT_KEY = 'passwordVault';
+const EXCLUDED_ORIGINS_KEY = 'passwordExcludedOrigins';
 
 const ALGORITHM = 'aes-256-gcm';
 
@@ -46,6 +47,18 @@ function getVault() {
 
 function saveVault(vault) {
     store.set(VAULT_KEY, vault);
+}
+
+function getExcludedOrigins() {
+    const excluded = store.get(EXCLUDED_ORIGINS_KEY);
+
+    if (!Array.isArray(excluded)) return [];
+
+    return excluded.filter((entry) => typeof entry === 'string' && entry.trim());
+}
+
+function saveExcludedOrigins(excluded) {
+    store.set(EXCLUDED_ORIGINS_KEY, excluded);
 }
 
 function normalizeUrl(url) {
@@ -139,10 +152,24 @@ function validateMasterPassword(masterPassword) {
     const password = String(masterPassword || '');
 
     if (password.length < MIN_MASTER_LENGTH) {
-        return { ok: false, error: `Master password must be at least ${MIN_MASTER_LENGTH} characters` };
+        return {
+            ok: false,
+            error: `Master password must be at least ${MIN_MASTER_LENGTH} characters`
+        };
     }
 
     return { ok: true };
+}
+
+function verifyMasterPassword(masterPassword) {
+    const vault = getVault();
+
+    if (!vault) return false;
+
+    const salt = Buffer.from(vault.salt, 'base64');
+    const key = deriveKey(masterPassword, salt);
+
+    return key.toString('base64') === vault.verifier;
 }
 
 function setupVault(masterPassword) {
@@ -243,7 +270,61 @@ function hasMatchingEntry(url, username) {
     return findEntryByUrlAndUsername(url, username) !== null;
 }
 
-function saveCapturedLogin({ title, url, username, password }) {
+function shouldStoreCapturedLogin(capture) {
+    const candidateUrl = String(capture && capture.url ? capture.url : '').trim();
+
+    if (!candidateUrl) return false;
+
+    const normalizedUrl = normalizeUrl(candidateUrl);
+
+    const excluded = getExcludedOrigins();
+
+    if (excluded.includes(normalizedUrl)) return false;
+
+    const formFields = Array.isArray(capture && capture.formFields) ? capture.formFields : [];
+    const pageHints = Array.isArray(capture && capture.pageHints) ? capture.pageHints : [];
+
+    const combinedHint = [formFields.join(' '), pageHints.join(' '), normalizedUrl]
+        .join(' ')
+        .toLowerCase();
+
+    if (/current password|new password|confirm password|old password/.test(combinedHint)) {
+        return false;
+    }
+
+    const urlHint = normalizedUrl.toLowerCase();
+
+    if (/password\/change|reset|forgot|recover/.test(urlHint)) return false;
+
+    if (/invalid credentials|sign in failed|login failed|incorrect password/.test(combinedHint)) {
+        return false;
+    }
+
+    return true;
+}
+
+function setExcludedOrigin(url) {
+    const normalizedUrl = normalizeUrl(url);
+
+    if (!normalizedUrl) return { ok: false, error: 'URL is required' };
+
+    const excluded = getExcludedOrigins();
+
+    if (!excluded.includes(normalizedUrl)) {
+        excluded.push(normalizedUrl);
+        saveExcludedOrigins(excluded);
+    }
+
+    return { ok: true };
+}
+
+function saveCapturedLogin(capture) {
+    if (!shouldStoreCapturedLogin(capture)) {
+        return { ok: false, error: 'Login capture skipped' };
+    }
+
+    const { title, url, username, password } = capture;
+
     const existing = findEntryByUrlAndUsername(url, username);
 
     if (existing) {
@@ -352,17 +433,17 @@ function deleteEntry(id) {
 
     const vault = getVault();
 
-    const before = vault.entries.length;
+    const entry = vault.entries.find((item) => item.id === id);
 
-    vault.entries = vault.entries.filter((entry) => entry.id !== id);
-
-    if (vault.entries.length === before) {
+    if (!entry) {
         return { ok: false, error: 'Password entry not found' };
     }
 
+    vault.entries = vault.entries.filter((item) => item.id !== id);
+
     saveVault(vault);
 
-    return { ok: true };
+    return { ok: true, url: entry.url, username: entry.username };
 }
 
 function getEntryPassword(id) {
@@ -409,5 +490,8 @@ module.exports = {
     deleteEntry,
     getEntryPassword,
     passwordState,
-    MIN_MASTER_LENGTH
+    MIN_MASTER_LENGTH,
+    shouldStoreCapturedLogin,
+    setExcludedOrigin,
+    verifyMasterPassword
 };
