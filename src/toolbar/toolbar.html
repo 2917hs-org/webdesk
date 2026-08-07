@@ -523,7 +523,8 @@
                 fill: currentColor;
             }
 
-            #bookmark-bar-toggle.on {
+            #bookmark-bar-toggle.on,
+            #group-tabs-toggle.on {
                 background: var(--hover);
 
                 color: var(--accent);
@@ -1019,6 +1020,91 @@
             }
 
             /*
+                A count badge on a grouped tab's chip, showing how many
+                real tabs it stands in for
+            */
+
+            .tab-group-count {
+                flex: none;
+
+                display: flex;
+
+                align-items: center;
+
+                justify-content: center;
+
+                height: 15px;
+
+                margin-left: 4px;
+
+                padding: 0 5px;
+
+                border-radius: 7px;
+
+                background: var(--letter-bg);
+
+                color: var(--letter-fg);
+
+                font-size: 10px;
+            }
+
+            /*
+                The active group's members, shown as a second row under
+                the strip — same idea as the bookmark bar, but for the
+                tabs a grouped chip is currently standing in for
+            */
+
+            #sub-tab-strip {
+                display: none;
+
+                align-items: center;
+
+                height: 32px;
+
+                padding: 0 6px;
+
+                border-top: 1px solid var(--separator);
+
+                background: var(--toolbar-bg);
+
+                overflow-x: auto;
+
+                overflow-y: hidden;
+
+                white-space: nowrap;
+
+                -webkit-app-region: no-drag;
+            }
+
+            #sub-tab-strip.visible {
+                display: flex;
+            }
+
+            #sub-tab-strip::-webkit-scrollbar {
+                height: 0;
+            }
+
+            #sub-tabs {
+                display: flex;
+
+                align-items: center;
+
+                min-width: 0;
+            }
+
+            #sub-tabs .tab {
+                flex: none;
+
+                height: 24px;
+
+                min-width: 90px;
+
+                max-width: 160px;
+
+                font-size: 11.5px;
+            }
+
+            /*
             Marks where a dragged tab would land. Positioned rather than
             inserted, so the strip does not shift under the cursor.
         */
@@ -1168,6 +1254,10 @@
                     <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 4.3h12"/><rect x="2.5" y="7.3" width="2.7" height="2.7" rx="0.6" fill="currentColor" stroke="none"/><rect x="6.65" y="7.3" width="2.7" height="2.7" rx="0.6" fill="currentColor" stroke="none"/><rect x="10.8" y="7.3" width="2.7" height="2.7" rx="0.6" fill="currentColor" stroke="none"/></svg>
                 </button>
 
+                <button id="group-tabs-toggle" data-tooltip="Group Tabs by Site">
+                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="2" y="2" width="7" height="7" rx="1.5"/><rect x="7" y="7" width="7" height="7" rx="1.5"/></svg>
+                </button>
+
                 <button id="passwords" data-tooltip="Passwords">
                     <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.1" cy="10.9" r="2.3"/><path d="M6.8 9.2 13.2 2.8"/><path d="M11.2 4.8l1.5 1.5"/><path d="M9.6 6.4l1.2 1.2"/></svg>
                 </button>
@@ -1200,6 +1290,10 @@
                     <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
                 </button>
             </div>
+        </div>
+
+        <div id="sub-tab-strip">
+            <div id="sub-tabs"></div>
         </div>
 
         <script>
@@ -2170,10 +2264,15 @@
 
                 const promptHeight = prompt.classList.contains('visible') ? prompt.offsetHeight : 0;
 
+                const subTabStripHeight = subTabStrip.classList.contains('visible')
+                    ? subTabStrip.offsetHeight
+                    : 0;
+
                 browserAPI.setToolbarHeight(
                     stripHeight +
                         barHeight +
                         promptHeight +
+                        subTabStripHeight +
                         (barVisible ? bookmarkBar.offsetHeight : 0)
                 );
             }
@@ -2229,6 +2328,12 @@
 
             const tabDrop = document.getElementById('tab-drop');
 
+            const groupTabsToggle = document.getElementById('group-tabs-toggle');
+
+            const subTabStrip = document.getElementById('sub-tab-strip');
+
+            const subTabs = document.getElementById('sub-tabs');
+
             const NEW_TAB_SHORTCUT = navigator.userAgent.includes('Mac') ? '⌘T' : 'Ctrl+T';
 
             const CLOSE_TAB_SHORTCUT = navigator.userAgent.includes('Mac') ? '⌘W' : 'Ctrl+W';
@@ -2244,11 +2349,32 @@
 
             let tabDropIndex = -1;
 
+            /*
+        Whether the strip is showing one chip per site (with the active
+        site's real tabs listed in the row below) instead of one chip
+        per tab. Purely a display choice — the tabs themselves, their
+        order, and their ids in the main process are untouched by it.
+    */
+
+            let groupedMode = false;
+
             newTabButton.dataset.tooltip = 'New Tab ' + NEW_TAB_SHORTCUT;
 
             function renderTabs(state) {
                 tabs = Array.isArray(state.tabs) ? state.tabs : [];
 
+                if (groupedMode) {
+                    renderGroupedTabs();
+                } else {
+                    renderFlatTabs();
+                }
+
+                updateAddressFavicon();
+
+                syncToolbarHeight();
+            }
+
+            function renderFlatTabs() {
                 tabStrip.textContent = '';
 
                 /*
@@ -2269,7 +2395,155 @@
 
                 tabStrip.appendChild(newTabButton);
 
-                updateAddressFavicon();
+                subTabStrip.classList.remove('visible');
+
+                subTabs.textContent = '';
+            }
+
+            /*
+        The site a tab is grouped under. Tabs on the same hostname land
+        in the same group regardless of path, the way a browser's own
+        tab groups key off the site rather than the exact page.
+    */
+
+            function siteKeyFor(tab) {
+                try {
+                    return new URL(tab.url).hostname.replace(/^www\./, '') || 'New Tab';
+                } catch {
+                    return tab.url || 'New Tab';
+                }
+            }
+
+            /*
+        Groups, in the order their site first appears among the open
+        tabs — so toggling grouping on and off doesn't reshuffle
+        anything the tab order didn't already imply.
+    */
+
+            function buildGroups() {
+                const order = [];
+
+                const membersByKey = new Map();
+
+                tabs.forEach((tab) => {
+                    const key = siteKeyFor(tab);
+
+                    if (!membersByKey.has(key)) {
+                        membersByKey.set(key, []);
+
+                        order.push(key);
+                    }
+
+                    membersByKey.get(key).push(tab);
+                });
+
+                return order.map((key) => ({ key, members: membersByKey.get(key) }));
+            }
+
+            function renderGroupedTabs() {
+                tabStrip.textContent = '';
+
+                tabStrip.appendChild(tabDrop);
+
+                const groups = buildGroups();
+
+                let activeGroup = null;
+
+                groups.forEach((group) => {
+                    tabStrip.appendChild(createGroupChip(group));
+
+                    if (group.members.some((tab) => tab.active)) {
+                        activeGroup = group;
+                    }
+                });
+
+                tabStrip.appendChild(newTabButton);
+
+                subTabs.textContent = '';
+
+                if (activeGroup && activeGroup.members.length > 1) {
+                    activeGroup.members.forEach((tab) => {
+                        subTabs.appendChild(createSubTabChip(tab));
+                    });
+
+                    subTabStrip.classList.add('visible');
+                } else {
+                    subTabStrip.classList.remove('visible');
+                }
+            }
+
+            function createGroupChip(group) {
+                const isActive = group.members.some((tab) => tab.active);
+
+                const representative = group.members.find((tab) => tab.active) || group.members[0];
+
+                const chip = document.createElement('div');
+
+                chip.className = 'tab' + (isActive ? ' active' : '');
+
+                chip.dataset.tooltip =
+                    group.key + ' — ' + group.members.length + (group.members.length === 1 ? ' tab' : ' tabs');
+
+                chip.appendChild(createTabIcon(representative));
+
+                const label = document.createElement('span');
+
+                label.className = 'tab-label';
+
+                label.textContent = group.key;
+
+                chip.appendChild(label);
+
+                if (group.members.length > 1) {
+                    const count = document.createElement('span');
+
+                    count.className = 'tab-group-count';
+
+                    count.textContent = String(group.members.length);
+
+                    chip.appendChild(count);
+                }
+
+                const close = document.createElement('span');
+
+                close.className = 'tab-close';
+
+                close.innerHTML = ICONS.close;
+
+                close.dataset.tooltip =
+                    'Close ' + group.members.length + (group.members.length === 1 ? ' Tab' : ' Tabs');
+
+                close.addEventListener('click', (event) => {
+                    event.stopPropagation();
+
+                    group.members.forEach((tab) => browserAPI.closeTab(tab.id));
+                });
+
+                chip.appendChild(close);
+
+                chip.addEventListener('click', () => {
+                    if (!isActive) {
+                        browserAPI.selectTab(group.members[0].id);
+                    }
+                });
+
+                return chip;
+            }
+
+            /*
+        A member of the active group, listed in the row under the
+        strip. Built from the same chip as an ungrouped tab so it picks
+        up its click-to-select, close, and hover behaviour for free —
+        just smaller, and not draggable, since reordering within a
+        group isn't part of what grouping means here.
+    */
+
+            function createSubTabChip(tab) {
+                const chip = createTabChip(tab);
+
+                chip.draggable = false;
+
+                return chip;
             }
 
             function tabLabel(tab) {
@@ -2494,6 +2768,16 @@
 
             newTabButton.addEventListener('click', () => {
                 browserAPI.newTab();
+            });
+
+            groupTabsToggle.addEventListener('click', () => {
+                groupedMode = !groupedMode;
+
+                groupTabsToggle.classList.toggle('on', groupedMode);
+
+                groupTabsToggle.dataset.tooltip = groupedMode ? 'Ungroup Tabs' : 'Group Tabs by Site';
+
+                renderTabs({ tabs });
             });
 
             browserAPI.onTabState(renderTabs);
