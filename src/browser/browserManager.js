@@ -75,10 +75,35 @@ function createBrowserView(window) {
         savePasswordPromptTimer: null
     };
 
-    windowContexts.set(window.webContents.id, ctx);
+    /*
+        Captured now rather than read back off window.webContents inside
+        the 'closed' handler below — by the time 'closed' fires (let
+        alone during the mass teardown of app quit) webContents is
+        already destroyed, and even reading its .id throws
+    */
+
+    const windowContentsId = window.webContents.id;
+
+    windowContexts.set(windowContentsId, ctx);
+
+    /*
+        'close' (not yet destroyed) rather than 'closed' — every tab's
+        BrowserView is torn down explicitly here while the window is
+        still alive, because Electron only auto-destroys the one
+        BrowserView actually attached with setBrowserView. Left to quit
+        on its own, the other background tabs' views would still be
+        live when the window (and, on Cmd+Q, the whole app) is
+        destroyed out from under them, which is what throws the
+        "Object has been destroyed" exceptions from inside Electron's
+        own BrowserView teardown.
+    */
+
+    window.on('close', () => {
+        ctx.tabs.destroyAll();
+    });
 
     window.on('closed', () => {
-        windowContexts.delete(window.webContents.id);
+        windowContexts.delete(windowContentsId);
     });
 
     ctx.tabs.init(window, {
@@ -391,6 +416,22 @@ function registerPageContextMenu(tab, ctx) {
     });
 }
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function isEmailAddress(text) {
+    return EMAIL_PATTERN.test(text);
+}
+
+function extractMailtoEmail(mailtoUrl) {
+    const address = mailtoUrl.replace(/^mailto:/i, '').split('?')[0];
+
+    try {
+        return decodeURIComponent(address);
+    } catch {
+        return address;
+    }
+}
+
 function buildPageContextMenuTemplate(tab, ctx, params, icons) {
     const contents = tab.view.webContents;
 
@@ -399,10 +440,17 @@ function buildPageContextMenuTemplate(tab, ctx, params, icons) {
     const template = [];
 
     /*
-        Only the download that applies to whatever was actually
-        right-clicked is offered — a plain patch of page only ever
-        offers to download the page itself
+        Only the single option that applies to whatever was actually
+        right-clicked is offered — an image, a video, an audio element,
+        a link, an email address, or (falling all the way back) the
+        page itself. These are mutually exclusive: a linked image, for
+        instance, offers only "Download Image", not both that and
+        "Download Link"/"Download Page".
     */
+
+    const isMailtoLink = typeof params.linkURL === 'string' && params.linkURL.toLowerCase().startsWith('mailto:');
+
+    const selectionIsEmail = typeof params.selectionText === 'string' && isEmailAddress(params.selectionText.trim());
 
     if (params.mediaType === 'image' && params.srcURL) {
         template.push({
@@ -412,9 +460,7 @@ function buildPageContextMenuTemplate(tab, ctx, params, icons) {
 
             click: () => contents.session.downloadURL(params.srcURL)
         });
-    }
-
-    if (params.mediaType === 'video' && params.srcURL) {
+    } else if (params.mediaType === 'video' && params.srcURL) {
         template.push({
             label: 'Download Video',
 
@@ -422,9 +468,23 @@ function buildPageContextMenuTemplate(tab, ctx, params, icons) {
 
             click: () => contents.session.downloadURL(params.srcURL)
         });
-    }
+    } else if (params.mediaType === 'audio' && params.srcURL) {
+        template.push({
+            label: 'Download Audio',
 
-    if (params.linkURL) {
+            icon: icons.download,
+
+            click: () => contents.session.downloadURL(params.srcURL)
+        });
+    } else if (isMailtoLink) {
+        template.push({
+            label: 'Copy Email',
+
+            icon: icons.copy,
+
+            click: () => clipboard.writeText(extractMailtoEmail(params.linkURL))
+        });
+    } else if (params.linkURL) {
         template.push({
             label: 'Download Link',
 
@@ -432,15 +492,23 @@ function buildPageContextMenuTemplate(tab, ctx, params, icons) {
 
             click: () => contents.session.downloadURL(params.linkURL)
         });
+    } else if (selectionIsEmail) {
+        template.push({
+            label: 'Copy Email',
+
+            icon: icons.copy,
+
+            click: () => clipboard.writeText(params.selectionText.trim())
+        });
+    } else {
+        template.push({
+            label: 'Download Page',
+
+            icon: icons.download,
+
+            click: () => contents.session.downloadURL(pageUrl)
+        });
     }
-
-    template.push({
-        label: 'Download Page',
-
-        icon: icons.download,
-
-        click: () => contents.session.downloadURL(pageUrl)
-    });
 
     template.push({ type: 'separator' });
 

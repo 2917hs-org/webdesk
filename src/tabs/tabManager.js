@@ -285,6 +285,26 @@ function createTabManager() {
         return tabs.length;
     }
 
+    /*
+        Explicit teardown for every tab at once, used when the whole
+        window is going away (see the 'close' handler in
+        browserManager.js) rather than one tab being closed by the
+        user. Only the active tab's BrowserView is ever attached to the
+        window, so the others need this to be destroyed at all — left
+        alone, they would still be alive when the window itself is
+        destroyed.
+    */
+
+    function destroyAll() {
+        for (const tab of tabs) {
+            destroyView(tab.view);
+        }
+
+        tabs = [];
+
+        activeId = null;
+    }
+
     function moveTab(id, toIndex) {
         const from = indexOfTab(id);
 
@@ -357,6 +377,7 @@ function createTabManager() {
         getSession,
         createTab,
         closeTab,
+        destroyAll,
         selectTab,
         moveTab,
         cycle,
