@@ -42,7 +42,10 @@ const ICON_MARKUP = {
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>',
 
     newWindow:
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round"><path d="M8 1.6v12.8M1.6 8h12.8"/></svg>'
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round"><path d="M8 1.6v12.8M1.6 8h12.8"/></svg>',
+
+    copy:
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1.2"/><path d="M3.5 10.5V3.7c0-.66.54-1.2 1.2-1.2h6.8"/></svg>'
 };
 
 /*
