@@ -80,17 +80,6 @@ function createMainWindow() {
 
     mainWindow.loadFile(path.join(__dirname, '../toolbar/toolbar.html'));
 
-    /*
-        TEMPORARY: forwards the toolbar page's own console.log calls into
-        this terminal, so renderer-side debug output shows up alongside
-        the main process's without needing DevTools open. Remove once
-        the save-password investigation is done.
-    */
-
-    mainWindow.webContents.on('console-message', (event, level, message) => {
-        console.log('[toolbar-console]', message);
-    });
-
     mainWindow.once('ready-to-show', () => {
         mainWindow.show();
     });

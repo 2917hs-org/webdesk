@@ -2,10 +2,17 @@
   "name": "webdesk",
   "productName": "WebDesk",
   "version": "1.0.0",
+  "description": "A lightweight macOS desktop application that turns any website into a standalone desktop experience.",
+  "author": "Hasan Siddiqui <hasan190889@gmail.com>",
+  "license": "Apache-2.0",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder"
+    "build": "electron-builder",
+    "test": "node --test tests/*.test.js",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@ghostery/adblocker-electron": "^2.18.1",
@@ -13,22 +20,33 @@
     "keytar": "^7.9.0"
   },
   "devDependencies": {
-    "electron": "latest",
-    "electron-builder": "latest",
-    "eslint": "^10.8.0"
+    "@eslint/js": "^10.0.1",
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3",
+    "eslint": "^10.8.0",
+    "globals": "^17.9.0",
+    "prettier": "^3.9.6"
   },
   "build": {
     "appId": "com.webdesk.app",
     "productName": "WebDesk",
     "files": [
       "**/*",
-      "!node_modules/.cache"
+      "!node_modules/.cache",
+      "!tests/**",
+      "!WebDesk.iconset/**",
+      "!eslint.config.js",
+      "!.prettierrc",
+      "!.prettierignore",
+      "!.claude/**",
+      "!README.md"
     ],
     "mac": {
       "icon": "assets/icon.icns",
       "target": [
         "dmg"
-      ]
+      ],
+      "hardenedRuntime": true
     }
   }
 }

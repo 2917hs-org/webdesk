@@ -2,8 +2,6 @@ const { BrowserWindow } = require('electron');
 
 const path = require('path');
 
-const passwordStore = require('./passwordStore');
-
 /*
     Opened from the toolbar to manage saved passwords. Only one may be
     open at a time, matching how the setup window is handled.
@@ -58,7 +56,7 @@ function createPasswordWindow(options) {
         vibrancy: 'popover',
 
         webPreferences: {
-            preload: path.join(__dirname, '../../preload.js'),
+            preload: path.join(__dirname, 'passwordManagerPreload.js'),
 
             contextIsolation: true,
 

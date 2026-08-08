@@ -2,6 +2,28 @@ const keytar = require('keytar');
 
 const store = require('../storage/settingsStore');
 
+/*
+    WebDesk keeps saved credentials in two places on purpose, not by
+    accident:
+
+      - Here, in the OS Keychain via keytar. This is what autofill reads
+        from (findCredentials/autofill-lookup), and it is available the
+        instant a login is captured — no unlock step, since the Keychain
+        already gates access at the OS level.
+
+      - In passwordStore.js's own encrypted vault, which is what the
+        Password Manager window lists, edits, and can lock behind a
+        master password.
+
+    A saved login is written to both (see saveCapturedPassword in
+    browserManager.js) and deleted from both (delete-password). Folding
+    these into one store would mean picking one behavior: either
+    autofill starts refusing to fill anything while the vault is locked
+    (today it doesn't check lock state at all), or the master-password
+    feature stops meaning anything for autofill specifically. Kept
+    separate, each store does the one thing it's actually used for.
+*/
+
 const SERVICE_NAME = 'WebDesk';
 
 /*

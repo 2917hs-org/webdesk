@@ -1,5 +1,7 @@
 const store = require('../storage/settingsStore');
 
+const { isWebUrl } = require('../shared/url');
+
 /*
     Bookmarks live in settings.json under "bookmarks", as
     { title, url, favicon } entries in the order they sit on the bar.
@@ -24,15 +26,7 @@ function normalizeUrl(url) {
     }
 }
 
-function isValidUrl(url) {
-    try {
-        const protocol = new URL(url).protocol;
-
-        return protocol === 'http:' || protocol === 'https:';
-    } catch {
-        return false;
-    }
-}
+const isValidUrl = isWebUrl;
 
 /*
     A favicon is handed straight to an <img> in the toolbar, so only the
