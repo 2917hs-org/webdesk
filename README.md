@@ -24,6 +24,8 @@ WebDesk uses Electron's Chromium engine to provide a dedicated application windo
 * Page refresh support
 * Tabs, with drag-to-reorder and `⌘T` / `⌘W` / `⌘1`–`⌘9` / `⌃Tab` shortcuts
 * Links that ask for a new window open in a new tab instead
+* File downloads, saved straight to the system Downloads folder with a toolbar panel for progress, pause/resume/cancel, retry, and history
+* A "New Window" icon (`⌘N`) for opening a second, fully independent WebDesk window that shares bookmarks, saved passwords, and download history with the first
 
 ---
 

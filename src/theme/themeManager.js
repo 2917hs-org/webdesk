@@ -58,6 +58,26 @@ function initTheme() {
     nativeTheme.on('updated', broadcastTheme);
 }
 
+/*
+    Shared by the toolbar's own Appearance button and the page's
+    right-click menu, so the two can never drift into offering
+    different choices for the same setting
+*/
+
+function buildThemeMenuTemplate() {
+    const active = currentTheme();
+
+    return Object.keys(THEME_LABELS).map((key) => ({
+        label: THEME_LABELS[key],
+
+        type: 'radio',
+
+        checked: key === active,
+
+        click: () => setTheme(key)
+    }));
+}
+
 function registerThemeEvents() {
     ipcMain.removeHandler('get-theme-source');
 
@@ -66,19 +86,7 @@ function registerThemeEvents() {
     ipcMain.removeAllListeners('show-theme-menu');
 
     ipcMain.on('show-theme-menu', (event) => {
-        const active = currentTheme();
-
-        const menu = Menu.buildFromTemplate(
-            Object.keys(THEME_LABELS).map((key) => ({
-                label: THEME_LABELS[key],
-
-                type: 'radio',
-
-                checked: key === active,
-
-                click: () => setTheme(key)
-            }))
-        );
+        const menu = Menu.buildFromTemplate(buildThemeMenuTemplate());
 
         menu.popup({ window: BrowserWindow.fromWebContents(event.sender) });
     });
@@ -87,5 +95,6 @@ function registerThemeEvents() {
 module.exports = {
     initTheme,
     registerThemeEvents,
-    currentTheme
+    currentTheme,
+    buildThemeMenuTemplate
 };

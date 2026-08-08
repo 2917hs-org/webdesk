@@ -531,6 +531,49 @@
             }
 
             /*
+            Downloads
+
+            Widens for its badge exactly like the shield does, and gets
+            an animated nudge while something is actively downloading so
+            it is noticeable without needing the panel open
+        */
+
+            #downloads {
+                position: relative;
+
+                width: auto;
+
+                min-width: 30px;
+
+                padding: 0 7px;
+
+                gap: 3px;
+            }
+
+            #downloads .count {
+                color: var(--accent);
+
+                font-size: 11px;
+
+                font-variant-numeric: tabular-nums;
+            }
+
+            #downloads.active svg {
+                animation: downloads-bounce 1.1s ease-in-out infinite;
+            }
+
+            @keyframes downloads-bounce {
+                0%,
+                100% {
+                    transform: translateY(0);
+                }
+
+                50% {
+                    transform: translateY(1.5px);
+                }
+            }
+
+            /*
             A strip below the address bar, the way desktop browsers show
             bookmarks. Anything past the window width scrolls rather than
             folding into an overflow menu.
@@ -1258,8 +1301,17 @@
                     <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="2" y="2" width="7" height="7" rx="1.5"/><rect x="7" y="7" width="7" height="7" rx="1.5"/></svg>
                 </button>
 
+                <button id="downloads" data-tooltip="Downloads">
+                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.2v7.6M4.8 6.8 8 9.9l3.2-3.1"/><path d="M2.8 11v1.6c0 .7.5 1.2 1.2 1.2h8c.7 0 1.2-.5 1.2-1.2V11"/></svg>
+                    <span class="count" id="downloads-count"></span>
+                </button>
+
                 <button id="passwords" data-tooltip="Passwords">
                     <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.1" cy="10.9" r="2.3"/><path d="M6.8 9.2 13.2 2.8"/><path d="M11.2 4.8l1.5 1.5"/><path d="M9.6 6.4l1.2 1.2"/></svg>
+                </button>
+
+                <button id="new-window" data-tooltip="New Window ⌘N">
+                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 1.6v12.8M1.6 8h12.8"/></svg>
                 </button>
 
                 <button id="theme-toggle" data-tooltip="Appearance"></button>
@@ -1896,6 +1948,67 @@
                         setHomeButton.dataset.tooltip = 'Set Homepage';
                     }, 1400);
                 });
+            });
+
+            /*
+        Downloads
+
+        The list itself lives in a separate small popover window (see
+        downloadsWindow.js) — this button only opens/closes it and
+        keeps its own badge in sync with however many downloads are
+        still running
+    */
+
+            const downloadsButton = document.getElementById('downloads');
+
+            const downloadsCount = document.getElementById('downloads-count');
+
+            function renderDownloadsBadge(downloads) {
+                const list = Array.isArray(downloads) ? downloads : [];
+
+                const active = list.filter(
+                    (download) => download.state === 'progressing' || download.state === 'paused'
+                );
+
+                downloadsCount.textContent = active.length > 0 ? String(active.length) : '';
+
+                downloadsButton.classList.toggle(
+                    'active',
+                    active.some((download) => download.state === 'progressing')
+                );
+            }
+
+            downloadsButton.addEventListener('click', () => {
+                const rect = downloadsButton.getBoundingClientRect();
+
+                browserAPI.toggleDownloadsPanel({
+                    left: rect.left,
+
+                    top: rect.bottom,
+
+                    width: rect.width,
+
+                    height: 0
+                });
+            });
+
+            browserAPI
+                .getDownloads()
+                .then(renderDownloadsBadge)
+                .catch(() => {
+                    /*
+                Asked before the main process was listening
+            */
+                });
+
+            browserAPI.onDownloadState(renderDownloadsBadge);
+
+            /*
+        New Window
+    */
+
+            document.getElementById('new-window').addEventListener('click', () => {
+                browserAPI.openNewWindow();
             });
 
             browserAPI.onURLChange((url) => {
@@ -2778,6 +2891,16 @@
                 groupTabsToggle.dataset.tooltip = groupedMode ? 'Ungroup Tabs' : 'Group Tabs by Site';
 
                 renderTabs({ tabs });
+            });
+
+            /*
+                The page's own right-click menu asks the real button to
+                do this rather than duplicating groupedMode's toggle
+                logic itself
+            */
+
+            browserAPI.onTriggerGroupTabsToggle(() => {
+                groupTabsToggle.click();
             });
 
             browserAPI.onTabState(renderTabs);
