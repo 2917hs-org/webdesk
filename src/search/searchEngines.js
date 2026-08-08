@@ -153,10 +153,12 @@ function buildSearchUrl(query) {
         "example.com" navigates while "3.14" and "define:recursion" do not
 */
 
+const EXPLICIT_SCHEME = /^[a-z][a-z0-9+.-]*:\/\//i;
+
 function looksLikeUrl(text) {
     if (/\s/.test(text)) return false;
 
-    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(text)) return true;
+    if (EXPLICIT_SCHEME.test(text)) return true;
 
     const host = text.split(/[/?#]/)[0];
 
@@ -176,7 +178,19 @@ function resolveInput(text) {
         return { type: 'search', url: buildSearchUrl(trimmed), query: trimmed };
     }
 
-    const url = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : 'https://' + trimmed;
+    const url = EXPLICIT_SCHEME.test(trimmed) ? trimmed : 'https://' + trimmed;
+
+    /*
+        Only http/https ever reaches loadURL from here. Text typed with
+        some other explicit scheme — javascript:, file:, data:, and the
+        like — falls back to being searched for, the same as any other
+        text that isn't a website address, rather than being handed
+        straight to the page in view.
+    */
+
+    if (!/^https?:\/\//i.test(url)) {
+        return { type: 'search', url: buildSearchUrl(trimmed), query: trimmed };
+    }
 
     return { type: 'url', url, query: trimmed };
 }

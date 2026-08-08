@@ -6,6 +6,8 @@ const { setWebsiteUrl } = require('../config/appConfig');
 
 const passwordStore = require('../passwords/passwordStore');
 
+const { isWebUrl } = require('../shared/url');
+
 /*
     Opened empty on first launch, and again later to change the site the
     app is pinned to. Only one may be open at a time, so the handlers
@@ -74,7 +76,7 @@ function createSetupWindow(options) {
         vibrancy: 'popover',
 
         webPreferences: {
-            preload: path.join(__dirname, '../../preload.js'),
+            preload: path.join(__dirname, 'setupPreload.js'),
 
             contextIsolation: true,
 
@@ -102,6 +104,15 @@ function createSetupWindow(options) {
     ipcMain.removeAllListeners('save-url');
 
     ipcMain.on('save-url', (_, url) => {
+        /*
+            setup.html already checks this before ever sending it — kept
+            here too so the site WebDesk is pinned to can never end up
+            being something other than a plain http/https address,
+            regardless of what sends this message
+        */
+
+        if (!isWebUrl(url)) return;
+
         setWebsiteUrl(url);
 
         setupWindow.close();

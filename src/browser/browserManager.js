@@ -26,6 +26,8 @@ const themeManager = require('../theme/themeManager');
 
 const menuIcons = require('./menuIcons');
 
+const { isWebUrl } = require('../shared/url');
+
 /*
     Fallback floor only — the real height is measured live by
     syncToolbarHeight() in toolbar.html once it has laid out the merged
@@ -234,16 +236,6 @@ function broadcastBookmarkState() {
 
 function registerNavigationEvents(tab, ctx) {
     const contents = tab.view.webContents;
-
-    /*
-        TEMPORARY: forwards this tab's own console.log calls (including
-        the injected login-capture script's) into this terminal. Remove
-        once the save-password investigation is done.
-    */
-
-    contents.on('console-message', (event, level, message) => {
-        console.log('[tab-console]', message);
-    });
 
     contents.on('did-start-loading', () => {
         tab.loading = true;
@@ -559,18 +551,6 @@ function buildPageContextMenuTemplate(tab, ctx, params, icons) {
 }
 
 function registerBrowserEvents() {
-    ipcMain.removeAllListeners('navigate');
-
-    ipcMain.on('navigate', (event, url) => {
-        const ctx = contextForSender(event.sender);
-
-        const view = ctx && ctx.tabs.activeView();
-
-        if (view) {
-            view.webContents.loadURL(url);
-        }
-    });
-
     /*
         Raw text from the address bar, which only becomes a URL or a
         search here, so the choice of engine stays out of the toolbar
@@ -904,7 +884,7 @@ async function saveAllPendingCaptures() {
     it and does not depend on catching the first navigation event
 */
 
-function registerToolbarEvents(window, ctx) {
+function registerToolbarEvents(window) {
     ipcMain.removeHandler('get-search-engine');
 
     ipcMain.handle('get-search-engine', () => searchEngines.describeActive());
@@ -1077,16 +1057,6 @@ function registerToolbarEvents(window, ctx) {
         return bookmarkState(senderCtx);
     });
 
-    ipcMain.removeHandler('remove-bookmark');
-
-    ipcMain.handle('remove-bookmark', (event, url) => {
-        bookmarkStore.removeBookmark(url);
-
-        broadcastBookmarkState();
-
-        return bookmarkState(contextForSender(event.sender));
-    });
-
     ipcMain.removeHandler('rename-bookmark');
 
     ipcMain.handle('rename-bookmark', (event, url, title) => {
@@ -1188,10 +1158,6 @@ function registerToolbarEvents(window, ctx) {
         const tabCtx = contextForTabContents(event.sender);
 
         const active = tabCtx && tabCtx.tabs.activeTab();
-
-        console.log('[save-password-debug] login-detected IPC received', {
-            isActiveTab: Boolean(active) && active.view.webContents === event.sender
-        });
 
         if (!active || active.view.webContents !== event.sender) return;
 
@@ -1480,16 +1446,6 @@ function isSameUrl(a, b) {
     }
 }
 
-function isWebUrl(url) {
-    try {
-        const protocol = new URL(url).protocol;
-
-        return protocol === 'http:' || protocol === 'https:';
-    } catch {
-        return false;
-    }
-}
-
 function hostnameFromUrl(url) {
     try {
         return new URL(url).hostname;
@@ -1598,24 +1554,13 @@ async function fillCredentialsIntoPage(webContents, username, password) {
 function handleLoginDetected(payload, ctx) {
     if (!ctx) return;
 
-    console.log('[save-password-debug] handleLoginDetected called with:', {
-        hasPassword: Boolean(payload && typeof payload.password === 'string' && payload.password),
-        url: payload && payload.url,
-        username: payload && payload.username,
-        viaAutofill: payload && payload.viaAutofill
-    });
-
     if (!payload || typeof payload.password !== 'string' || !payload.password) {
-        console.log('[save-password-debug] REJECTED: no password in payload');
-
         return;
     }
 
     const url = String(payload.url || currentUrl(ctx)).trim();
 
     if (!isWebUrl(url)) {
-        console.log('[save-password-debug] REJECTED: not a web url ->', url);
-
         return;
     }
 
@@ -1630,11 +1575,6 @@ function handleLoginDetected(payload, ctx) {
     };
 
     if (!passwordStore.shouldStoreCapturedLogin(capture)) {
-        console.log('[save-password-debug] REJECTED: shouldStoreCapturedLogin returned false', {
-            url,
-            formFields: capture.formFields
-        });
-
         return;
     }
 
@@ -1651,8 +1591,6 @@ function handleLoginDetected(payload, ctx) {
     */
 
     if (payload.viaAutofill && hasExisting) {
-        console.log('[save-password-debug] REJECTED: viaAutofill + already has matching entry');
-
         return;
     }
 
@@ -1661,8 +1599,6 @@ function handleLoginDetected(payload, ctx) {
     if (ctx.savePasswordPromptTimer) {
         clearTimeout(ctx.savePasswordPromptTimer);
     }
-
-    console.log('[save-password-debug] SENDING prompt to toolbar for', hostnameFromUrl(url));
 
     sendToToolbar(ctx, 'save-password-prompt', {
         kind: 'save',

@@ -2,6 +2,8 @@ const { BrowserView, session } = require('electron');
 
 const path = require('path');
 
+const { isWebUrl } = require('../shared/url');
+
 /*
     Holds one view per tab and decides which of them a window is
     showing. What a page then does — where it navigates, what it blocks,
@@ -200,7 +202,7 @@ function createTabManager() {
             view.setBounds(bounds);
         }
 
-        if (url) {
+        if (url && isWebUrl(url)) {
             view.webContents.loadURL(url);
         }
 

@@ -77,7 +77,7 @@ function createDownloadsWindow(anchorBounds, parentWindow) {
         vibrancy: 'popover',
 
         webPreferences: {
-            preload: path.join(__dirname, '../../preload.js'),
+            preload: path.join(__dirname, 'downloadsPreload.js'),
 
             contextIsolation: true,
 

@@ -2,6 +2,15 @@ const crypto = require('crypto');
 
 const store = require('../storage/settingsStore');
 
+/*
+    This vault is the Password Manager window's store — listing,
+    editing, and the master-password lock all live here. Autofill does
+    NOT read from this file; it reads from the OS Keychain via
+    credentialStore.js instead, on purpose. See the comment at the top
+    of credentialStore.js for why the two are kept separate rather than
+    merged into one.
+*/
+
 const VAULT_KEY = 'passwordVault';
 const EXCLUDED_ORIGINS_KEY = 'passwordExcludedOrigins';
 
