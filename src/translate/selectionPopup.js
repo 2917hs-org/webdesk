@@ -20,7 +20,7 @@ const languages = require('./languages');
 
 const WIDTH = 300;
 
-const HEIGHT = 150;
+const HEIGHT = 172;
 
 let popup = null;
 

@@ -12,7 +12,7 @@ const path = require('path');
 
 const WIDTH = 300;
 
-const HEIGHT = 210;
+const HEIGHT = 222;
 
 let translateWindow = null;
 
