@@ -1,0 +1,449 @@
+<!doctype html>
+
+<html>
+    <head>
+        <style>
+            :root {
+                --bg: rgba(246, 246, 246, 0.86);
+
+                --text-primary: #1d1d1f;
+
+                --text-secondary: #6e6e73;
+
+                --separator: rgba(0, 0, 0, 0.1);
+
+                --hover: rgba(0, 0, 0, 0.06);
+
+                --accent: #007aff;
+
+                --danger: #ff3b30;
+
+                --field-border: rgba(0, 0, 0, 0.15);
+
+                --field-bg: rgba(255, 255, 255, 0.6);
+            }
+
+            @media (prefers-color-scheme: dark) {
+                :root {
+                    --bg: rgba(36, 36, 38, 0.86);
+
+                    --text-primary: #f5f5f7;
+
+                    --text-secondary: #98989d;
+
+                    --separator: rgba(255, 255, 255, 0.12);
+
+                    --hover: rgba(255, 255, 255, 0.09);
+
+                    --accent: #0a84ff;
+
+                    --danger: #ff453a;
+
+                    --field-border: rgba(255, 255, 255, 0.16);
+
+                    --field-bg: rgba(255, 255, 255, 0.08);
+                }
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            html,
+            body {
+                margin: 0;
+
+                height: 100%;
+
+                overflow: hidden;
+            }
+
+            body {
+                display: flex;
+
+                flex-direction: column;
+
+                background: var(--bg);
+
+                color: var(--text-primary);
+
+                font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+
+                -webkit-font-smoothing: antialiased;
+
+                user-select: none;
+
+                border-radius: 10px;
+            }
+
+            header {
+                flex: none;
+
+                padding: 10px 12px;
+
+                border-bottom: 1px solid var(--separator);
+
+                font-size: 12.5px;
+
+                font-weight: 600;
+
+                -webkit-app-region: drag;
+            }
+
+            #body {
+                flex: 1;
+
+                padding: 12px;
+
+                display: flex;
+
+                flex-direction: column;
+
+                gap: 10px;
+
+                -webkit-app-region: no-drag;
+            }
+
+            .field {
+                display: flex;
+
+                flex-direction: column;
+
+                gap: 4px;
+            }
+
+            .field label {
+                font-size: 10.5px;
+
+                color: var(--text-secondary);
+
+                text-transform: uppercase;
+
+                letter-spacing: 0.02em;
+            }
+
+            select {
+                appearance: none;
+
+                -webkit-appearance: none;
+
+                background: var(--field-bg);
+
+                border: 1px solid var(--field-border);
+
+                border-radius: 6px;
+
+                color: var(--text-primary);
+
+                font-size: 12.5px;
+
+                padding: 6px 8px;
+
+                font-family: inherit;
+            }
+
+            #swap {
+                align-self: center;
+
+                border: none;
+
+                background: transparent;
+
+                color: var(--text-secondary);
+
+                cursor: pointer;
+
+                padding: 2px;
+
+                border-radius: 5px;
+
+                width: 22px;
+
+                height: 22px;
+
+                display: flex;
+
+                align-items: center;
+
+                justify-content: center;
+            }
+
+            #swap:hover {
+                background: var(--hover);
+
+                color: var(--text-primary);
+            }
+
+            .langs {
+                display: flex;
+
+                align-items: flex-end;
+
+                gap: 6px;
+            }
+
+            .langs .field {
+                flex: 1;
+
+                min-width: 0;
+            }
+
+            #always-row {
+                display: flex;
+
+                align-items: flex-start;
+
+                gap: 6px;
+
+                font-size: 11.5px;
+
+                color: var(--text-secondary);
+
+                line-height: 1.3;
+            }
+
+            #always-row input {
+                margin-top: 1px;
+            }
+
+            #action {
+                border: none;
+
+                border-radius: 7px;
+
+                background: var(--accent);
+
+                color: #fff;
+
+                font-size: 12.5px;
+
+                font-weight: 600;
+
+                padding: 8px;
+
+                cursor: pointer;
+            }
+
+            #action:disabled {
+                opacity: 0.6;
+
+                cursor: default;
+            }
+
+            #status {
+                font-size: 11px;
+
+                color: var(--danger);
+
+                min-height: 13px;
+            }
+        </style>
+    </head>
+
+    <body>
+        <header>Translate Page</header>
+
+        <div id="body">
+            <div class="langs">
+                <div class="field">
+                    <label for="source-lang">From</label>
+
+                    <select id="source-lang"></select>
+                </div>
+
+                <div class="field">
+                    <label for="target-lang">To</label>
+
+                    <select id="target-lang"></select>
+                </div>
+            </div>
+
+            <label id="always-row">
+                <input type="checkbox" id="always" />
+
+                <span id="always-label">Always translate</span>
+            </label>
+
+            <button id="action" type="button">Translate</button>
+
+            <div id="status"></div>
+        </div>
+
+        <script>
+            const sourceSelect = document.getElementById('source-lang');
+
+            const targetSelect = document.getElementById('target-lang');
+
+            const alwaysCheckbox = document.getElementById('always');
+
+            const alwaysLabel = document.getElementById('always-label');
+
+            const actionButton = document.getElementById('action');
+
+            const statusEl = document.getElementById('status');
+
+            let state = null;
+
+            function nameOf(list, code) {
+                const match = list.find((lang) => lang.code === code);
+
+                return match ? match.name : code;
+            }
+
+            function populateSelect(select, list) {
+                select.innerHTML = '';
+
+                for (const lang of list) {
+                    const option = document.createElement('option');
+
+                    option.value = lang.code;
+
+                    option.textContent = lang.name;
+
+                    select.appendChild(option);
+                }
+            }
+
+            function updateAlwaysRow() {
+                const source = sourceSelect.value;
+
+                const target = targetSelect.value;
+
+                alwaysLabel.textContent =
+                    'Always translate ' +
+                    nameOf(state.sourceLanguages, source) +
+                    ' → ' +
+                    nameOf(state.targetLanguages, target);
+
+                alwaysCheckbox.disabled = source === 'auto';
+
+                alwaysCheckbox.checked =
+                    !alwaysCheckbox.disabled && state.alwaysTranslate[source] === target;
+            }
+
+            function render() {
+                sourceSelect.value = state.selectedSource;
+
+                targetSelect.value = state.selectedTarget;
+
+                updateAlwaysRow();
+
+                const page = state.pageState;
+
+                actionButton.disabled = Boolean(page.busy);
+
+                actionButton.textContent = page.busy
+                    ? 'Translating…'
+                    : page.translated
+                      ? 'Show Original'
+                      : 'Translate';
+            }
+
+            function init(data) {
+                state = data;
+
+                populateSelect(sourceSelect, data.sourceLanguages);
+
+                populateSelect(targetSelect, data.targetLanguages);
+
+                render();
+            }
+
+            browserAPI.getTranslateState().then(init);
+
+            function onDropdownChange() {
+                state.selectedSource = sourceSelect.value;
+
+                state.selectedTarget = targetSelect.value;
+
+                browserAPI.setTranslateChoice(state.selectedSource, state.selectedTarget);
+
+                updateAlwaysRow();
+            }
+
+            sourceSelect.addEventListener('change', onDropdownChange);
+
+            targetSelect.addEventListener('change', onDropdownChange);
+
+            alwaysCheckbox.addEventListener('change', async () => {
+                const alwaysTranslate = await browserAPI.setAlwaysTranslate(
+                    sourceSelect.value,
+                    targetSelect.value,
+                    alwaysCheckbox.checked
+                );
+
+                state.alwaysTranslate = alwaysTranslate;
+            });
+
+            actionButton.addEventListener('click', async () => {
+                statusEl.textContent = '';
+
+                if (state.pageState.translated) {
+                    state.pageState = { ...state.pageState, busy: true };
+
+                    render();
+
+                    const result = await browserAPI.restorePage();
+
+                    state.pageState = { ...state.pageState, busy: false, translated: !result.ok };
+
+                    if (!result.ok)
+                        statusEl.textContent = result.error || 'Could not restore the page.';
+
+                    render();
+
+                    return;
+                }
+
+                state.pageState = { ...state.pageState, busy: true };
+
+                render();
+
+                const result = await browserAPI.translatePage(
+                    sourceSelect.value,
+                    targetSelect.value
+                );
+
+                if (result.ok) {
+                    state.pageState = {
+                        busy: false,
+
+                        translated: true,
+
+                        sourceLang: result.sourceLang,
+
+                        targetLang: result.targetLang,
+
+                        detectedLang: result.detectedLang
+                    };
+
+                    /*
+                        "Detect language" as a source only means something
+                        as a request — once translated, the dropdown is
+                        moved to whatever language actually came back so
+                        the always-translate checkbox has a real language
+                        to attach to
+                    */
+
+                    if (sourceSelect.value === 'auto' && result.detectedLang) {
+                        sourceSelect.value = result.detectedLang;
+
+                        state.selectedSource = result.detectedLang;
+                    }
+                } else {
+                    state.pageState = { ...state.pageState, busy: false };
+
+                    statusEl.textContent = result.error || 'Translation failed.';
+                }
+
+                render();
+            });
+
+            window.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') {
+                    window.close();
+                }
+            });
+        </script>
+    </body>
+</html>

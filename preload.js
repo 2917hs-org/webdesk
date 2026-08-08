@@ -173,6 +173,16 @@ contextBridge.exposeInMainWorld('browserAPI', {
         ipcRenderer.send('toggle-downloads-panel', anchorRect);
     },
 
+    toggleTranslatePanel(anchorRect) {
+        ipcRenderer.send('toggle-translate-panel', anchorRect);
+    },
+
+    onTranslateBadgeState(callback) {
+        ipcRenderer.on('translate-badge-state', (_, state) => {
+            callback(state);
+        });
+    },
+
     setToolbarHeight(height) {
         ipcRenderer.send('set-toolbar-height', height);
     },

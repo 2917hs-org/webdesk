@@ -524,7 +524,8 @@
             }
 
             #bookmark-bar-toggle.on,
-            #group-tabs-toggle.on {
+            #group-tabs-toggle.on,
+            #translate.on {
                 background: var(--hover);
 
                 color: var(--accent);
@@ -1301,6 +1302,10 @@
                     <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="2" y="2" width="7" height="7" rx="1.5"/><rect x="7" y="7" width="7" height="7" rx="1.5"/></svg>
                 </button>
 
+                <button id="translate" data-tooltip="Translate Page">
+                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.7h6.4M5.2 2.3v1.4M6.7 3.7c-.5 2.6-2.1 4.6-4.3 5.9M3.1 6.2c1 1.4 2.4 2.4 4.1 2.9"/><path d="m9.6 13.4 2.9-6.6 2.9 6.6M10.4 11.4h4.2" stroke-linejoin="round"/></svg>
+                </button>
+
                 <button id="downloads" data-tooltip="Downloads">
                     <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.2v7.6M4.8 6.8 8 9.9l3.2-3.1"/><path d="M2.8 11v1.6c0 .7.5 1.2 1.2 1.2h8c.7 0 1.2-.5 1.2-1.2V11"/></svg>
                     <span class="count" id="downloads-count"></span>
@@ -1990,6 +1995,34 @@
 
                     height: 0
                 });
+            });
+
+            /*
+                Same anchored-popover pattern as Downloads above, but the
+                badge here reflects whether the page in front of you right
+                now is translated rather than counting anything running in
+                the background — see translateWindow.js for the popover
+                itself
+            */
+
+            const translateButton = document.getElementById('translate');
+
+            translateButton.addEventListener('click', () => {
+                const rect = translateButton.getBoundingClientRect();
+
+                browserAPI.toggleTranslatePanel({
+                    left: rect.left,
+
+                    top: rect.bottom,
+
+                    width: rect.width,
+
+                    height: 0
+                });
+            });
+
+            browserAPI.onTranslateBadgeState((state) => {
+                translateButton.classList.toggle('on', Boolean(state && state.translated));
             });
 
             browserAPI

@@ -28,6 +28,19 @@ const menuIcons = require('./menuIcons');
 
 const { isWebUrl } = require('../shared/url');
 
+const pageTranslator = require('../translate/pageTranslator');
+
+const translatePrefs = require('../translate/translatePrefs');
+
+const languages = require('../translate/languages');
+
+const {
+    toggleTranslateWindow,
+    getOwnerCtx: getTranslatePanelCtx
+} = require('../translate/translateWindow');
+
+const selectionPopup = require('../translate/selectionPopup');
+
 /*
     Fallback floor only — the real height is measured live by
     syncToolbarHeight() in toolbar.html once it has laid out the merged
@@ -114,6 +127,8 @@ function createBrowserView(window) {
 
             registerPageContextMenu(tab, ctx);
 
+            registerTranslateEvents(tab, ctx);
+
             registerShortcuts(tab.view.webContents, ctx);
         },
 
@@ -134,6 +149,8 @@ function createBrowserView(window) {
             sendToToolbar(ctx, 'shield-state', shieldState(ctx));
 
             sendToToolbar(ctx, 'bookmark-state', bookmarkState(ctx));
+
+            sendToToolbar(ctx, 'translate-badge-state', translateBadgeState(tab));
         },
 
         onChange: () => {
@@ -153,6 +170,8 @@ function createBrowserView(window) {
     registerBrowserEvents();
 
     registerDownloadEvents();
+
+    registerTranslateIpcEvents();
 
     registerShortcuts(window.webContents, ctx);
 
@@ -434,6 +453,39 @@ function registerPageContextMenu(tab, ctx) {
     });
 }
 
+function translateBadgeState(tab) {
+    return { translated: pageTranslator.getState(tab.view.webContents).translated };
+}
+
+/*
+    Two things a tab needs regardless of whether the translate popover
+    has ever been opened for it: its translated-DOM state has to be
+    thrown away on a real navigation (the text nodes it points at no
+    longer exist), and every finished load has to be offered to the
+    "always translate X" rules, since those fire on their own rather
+    than waiting for a click
+*/
+
+function registerTranslateEvents(tab, ctx) {
+    const contents = tab.view.webContents;
+
+    contents.on('did-navigate', () => {
+        pageTranslator.resetState(contents);
+
+        if (isActive(tab, ctx)) {
+            sendToToolbar(ctx, 'translate-badge-state', { translated: false });
+        }
+    });
+
+    contents.on('did-finish-load', () => {
+        pageTranslator.maybeAutoTranslate(contents).then((result) => {
+            if (result && result.ok && isActive(tab, ctx)) {
+                sendToToolbar(ctx, 'translate-badge-state', { translated: true });
+            }
+        });
+    });
+}
+
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function isEmailAddress(text) {
@@ -448,6 +500,38 @@ function extractMailtoEmail(mailtoUrl) {
     } catch {
         return address;
     }
+}
+
+function truncateForMenu(text, max = 24) {
+    return text.length > max ? text.slice(0, max).trimEnd() + '…' : text;
+}
+
+/*
+    params.x/y are page-relative (the same coordinate space the
+    BrowserView itself is drawn in), so turning them into a screen
+    point for the popup means adding the window's own screen position
+    and — since the view sits below the toolbar, not at the window's
+    top edge — the toolbar's live height on top of that
+*/
+
+function handleTranslateSelection(ctx, params) {
+    if (!ctx || !ctx.window || ctx.window.isDestroyed()) return;
+
+    const text = typeof params.selectionText === 'string' ? params.selectionText.trim() : '';
+
+    if (!text) return;
+
+    const bounds = ctx.window.getContentBounds();
+
+    const screenPoint = {
+        x: bounds.x + params.x,
+
+        y: bounds.y + ctx.toolbarHeight + params.y
+    };
+
+    const targetLang = translatePrefs.getPrefs().targetLang;
+
+    selectionPopup.showSelectionTranslation(text, screenPoint, ctx.window, targetLang);
 }
 
 function buildPageContextMenuTemplate(tab, ctx, params, icons) {
@@ -466,9 +550,11 @@ function buildPageContextMenuTemplate(tab, ctx, params, icons) {
         "Download Link"/"Download Page".
     */
 
-    const isMailtoLink = typeof params.linkURL === 'string' && params.linkURL.toLowerCase().startsWith('mailto:');
+    const isMailtoLink =
+        typeof params.linkURL === 'string' && params.linkURL.toLowerCase().startsWith('mailto:');
 
-    const selectionIsEmail = typeof params.selectionText === 'string' && isEmailAddress(params.selectionText.trim());
+    const selectionIsEmail =
+        typeof params.selectionText === 'string' && isEmailAddress(params.selectionText.trim());
 
     if (params.mediaType === 'image' && params.srcURL) {
         template.push({
@@ -525,6 +611,19 @@ function buildPageContextMenuTemplate(tab, ctx, params, icons) {
             icon: icons.download,
 
             click: () => contents.session.downloadURL(pageUrl)
+        });
+    }
+
+    const selectionText =
+        typeof params.selectionText === 'string' ? params.selectionText.trim() : '';
+
+    if (selectionText) {
+        template.push({
+            label: 'Translate "' + truncateForMenu(selectionText) + '"',
+
+            icon: icons.translate,
+
+            click: () => handleTranslateSelection(ctx, params)
         });
     }
 
@@ -866,6 +965,129 @@ function registerDownloadEvents() {
             : content;
 
         toggleDownloadsWindow(anchorBounds, win);
+    });
+}
+
+/*
+    The translate popover, unlike the downloads one, acts on a
+    particular window's active tab rather than one shared list — so
+    opening it has to remember which window asked (translateWindow.js
+    holds that as ownerCtx) before any of the handlers below, which are
+    reached from the popover's own IPC messages and have no sender to
+    resolve a window from, can do anything with it
+*/
+
+function registerTranslateIpcEvents() {
+    ipcMain.removeAllListeners('toggle-translate-panel');
+
+    ipcMain.on('toggle-translate-panel', (event, anchorRect) => {
+        const win = BrowserWindow.fromWebContents(event.sender);
+
+        if (!win) return;
+
+        const ctx = contextForSender(event.sender);
+
+        const content = win.getContentBounds();
+
+        const anchorBounds = anchorRect
+            ? {
+                  x: content.x + anchorRect.left,
+
+                  y: content.y + anchorRect.top,
+
+                  width: anchorRect.width,
+
+                  height: anchorRect.height
+              }
+            : content;
+
+        toggleTranslateWindow(anchorBounds, win, ctx);
+    });
+
+    ipcMain.removeHandler('get-translate-state');
+
+    ipcMain.handle('get-translate-state', () => {
+        const ctx = getTranslatePanelCtx();
+
+        const prefs = translatePrefs.getPrefs();
+
+        const view = ctx && ctx.tabs.activeView();
+
+        const pageState = view
+            ? pageTranslator.getState(view.webContents)
+            : {
+                  translated: false,
+                  busy: false,
+                  sourceLang: null,
+                  targetLang: null,
+                  detectedLang: null
+              };
+
+        return {
+            sourceLanguages: languages.getSourceLanguages(),
+
+            targetLanguages: languages.getTargetLanguages(),
+
+            selectedSource: prefs.sourceLang,
+
+            selectedTarget: prefs.targetLang,
+
+            alwaysTranslate: prefs.alwaysTranslate,
+
+            pageState
+        };
+    });
+
+    ipcMain.removeHandler('translate-page');
+
+    ipcMain.handle('translate-page', async (_, sourceLang, targetLang) => {
+        const ctx = getTranslatePanelCtx();
+
+        const view = ctx && ctx.tabs.activeView();
+
+        if (!view) return { ok: false, error: 'No page to translate' };
+
+        translatePrefs.setLastChoice(sourceLang, targetLang);
+
+        const result = await pageTranslator.translatePage(view.webContents, sourceLang, targetLang);
+
+        if (result.ok) {
+            sendToToolbar(ctx, 'translate-badge-state', { translated: true });
+        }
+
+        return result;
+    });
+
+    ipcMain.removeHandler('restore-translated-page');
+
+    ipcMain.handle('restore-translated-page', async () => {
+        const ctx = getTranslatePanelCtx();
+
+        const view = ctx && ctx.tabs.activeView();
+
+        if (!view) return { ok: false, error: 'No page to restore' };
+
+        const result = await pageTranslator.restorePage(view.webContents);
+
+        if (result.ok) {
+            sendToToolbar(ctx, 'translate-badge-state', { translated: false });
+        }
+
+        return result;
+    });
+
+    ipcMain.removeAllListeners('set-translate-choice');
+
+    ipcMain.on('set-translate-choice', (_, sourceLang, targetLang) => {
+        translatePrefs.setLastChoice(sourceLang, targetLang);
+    });
+
+    ipcMain.removeHandler('set-always-translate');
+
+    ipcMain.handle('set-always-translate', (_, sourceLang, targetLang, enabled) => {
+        const prefs = translatePrefs.setAlwaysTranslate(sourceLang, targetLang, enabled);
+
+        return prefs.alwaysTranslate;
     });
 }
 
@@ -1252,7 +1474,9 @@ function registerToolbarEvents(window) {
 
     ipcMain.removeHandler('save-captured-password');
 
-    ipcMain.handle('save-captured-password', (event) => saveCapturedPassword(contextForSender(event.sender)));
+    ipcMain.handle('save-captured-password', (event) =>
+        saveCapturedPassword(contextForSender(event.sender))
+    );
 
     ipcMain.removeAllListeners('dismiss-save-password-prompt');
 
@@ -1366,6 +1590,19 @@ function registerShortcuts(contents, ctx) {
 
 function handleShortcut(event, input, ctx) {
     if (input.type !== 'keyDown') return;
+
+    /*
+        The selection-translate popup does not always hold OS focus (a
+        right-click menu selection does not necessarily hand focus to
+        the popup it opens), so a keypress that lands on the toolbar or
+        the page instead of the popup itself still has to close it —
+        this is what makes that half of "any key closes it" true
+        regardless of where focus actually is
+    */
+
+    if (selectionPopup.isSelectionPopupOpen()) {
+        selectionPopup.closeSelectionPopup();
+    }
 
     const key = String(input.key).toLowerCase();
 
