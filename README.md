@@ -24,6 +24,37 @@ WebDesk uses Electron's Chromium engine to provide a dedicated application windo
 * Page refresh support
 * Tabs, with drag-to-reorder and `⌘T` / `⌘W` / `⌘1`–`⌘9` / `⌃Tab` shortcuts
 * Links that ask for a new window open in a new tab instead
+* File downloads, saved straight to the system Downloads folder with a toolbar panel for progress, pause/resume/cancel, retry, and history
+* A "New Window" icon (`⌘N`) for opening a second, fully independent WebDesk window that shares bookmarks, saved passwords, and download history with the first
+* Bookmarks bar (`⌘⇧B` to toggle), with drag-to-reorder, rename, and a right-click menu
+* Built-in ad/tracker blocking (Ghostery's EasyList/EasyPrivacy engine), with a shield toggle to disable it per site
+* A password manager with autofill suggestions on login forms — see [Password Manager](#password-manager) below for how it's protected
+* Light / Dark / Follow System appearance, matching macOS's own setting
+* Configurable search engine for anything typed into the address bar that isn't a URL
+* A built-in translator — full-page translate from a toolbar popover, plus a "Translate" selection popup from the right-click menu — see [Translator](#translator) below
+
+---
+
+## Password Manager
+
+WebDesk can save logins typed into pages it's pinned to and offer them back as autofill suggestions. Saved passwords are encrypted (AES-256-GCM) either way, but the *key* they're encrypted under depends on whether you've set a master password:
+
+* **No master password set (the default):** entries are still encrypted on disk, but under a fixed key built into the app itself — not a secret only you know. This protects against casually opening `settings.json` and reading passwords in plain text, but not against someone who has both the file and the app's source.
+* **Master password set:** entries are re-encrypted under a key derived from your password, which is never stored. Without it, the entries on disk cannot be decrypted.
+
+Set a master password from the Password Manager (toolbar → Passwords…) whenever you want real protection rather than the unprotected default.
+
+---
+
+## Translator
+
+WebDesk can translate pages in place, without leaving the site.
+
+* **Full-page translate** — click the toolbar's translate icon to open a popover with From/To language dropdowns. Translating walks the active tab's text nodes directly (via `executeJavaScript`), so links, layout, and formatting survive.
+* **"Always translate" rule** — check "Always translate X to Y" in the popover to persist that language pair; future pages detected as language X auto-translate to Y without asking again.
+* **Selection translate** — select text on a page, right-click, and choose "Translate" to get a small popup with just that selection's translation, next to the selection. It closes on the next click or keystroke.
+
+Translation is done via the free, unofficial `translate.googleapis.com` endpoint (the same one behind translate.google.com's own web UI) — no API key or account required, but also no SLA, so occasional failures are expected and handled per-string rather than aborting the whole page.
 
 ---
 
@@ -110,8 +141,53 @@ webdesk/
     │   ├── setup.html
     │   └── setup.js
     │
-    └── storage/
-        └── settingsStore.js
+    ├── bookmarks/
+    │   └── bookmarkStore.js
+    │
+    ├── passwords/
+    │   ├── passwordStore.js         # Encrypted vault (electron-store, AES-256-GCM)
+    │   ├── credentialStore.js       # OS Keychain-backed autofill lookup (keytar)
+    │   ├── loginCapturePreload.js   # Injected into each tab to detect logins
+    │   ├── passwordWindow.js
+    │   └── passwords.html
+    │
+    ├── downloads/
+    │   ├── downloadManager.js
+    │   ├── downloadStore.js
+    │   ├── downloadsWindow.js
+    │   └── downloads.html
+    │
+    ├── privacy/
+    │   ├── adblocker.js         # Wraps @ghostery/adblocker-electron
+    │   └── adblockStore.js      # Per-site allowlist
+    │
+    ├── search/
+    │   └── searchEngines.js     # Address bar: URL vs. search resolution
+    │
+    ├── translate/
+    │   ├── translateService.js     # Calls the translate.googleapis.com endpoint
+    │   ├── translatePrefs.js       # Persists "always translate X to Y" rules
+    │   ├── translateWindow.js      # The toolbar popover (From/To pickers)
+    │   ├── translatePreload.js
+    │   ├── pageTranslator.js       # Walks a tab's text nodes and swaps in translations
+    │   ├── selectionPopup.js       # The right-click "Translate" popup
+    │   ├── selectionPreload.js
+    │   └── languages.js            # Supported language list
+    │
+    ├── theme/
+    │   └── themeManager.js
+    │
+    ├── shared/
+    │   └── url.js                # Single source of truth for "is this a loadable URL"
+    │
+    ├── storage/
+    │   └── settingsStore.js      # The one electron-store instance everything reads/writes
+    │
+    ├── config/
+    │   └── appConfig.js          # The pinned website URL, read through settingsStore
+    │
+    └── toolbar/
+        └── toolbar.html          # The main window's UI (tabs, address bar, bookmarks bar)
 ```
 
 ---
@@ -217,10 +293,12 @@ The data is isolated from Google Chrome.
 
 WebDesk follows Electron security recommendations:
 
-* `contextIsolation` enabled
-* `nodeIntegration` disabled
-* Sandboxed renderer processes
-* Minimal preload API exposure
+* `contextIsolation` enabled, `nodeIntegration` disabled, `sandbox` enabled — on every window, with no exceptions
+* Minimal, named preload API exposure — no generic `send`/`invoke` passthrough
+* All navigation (address bar, bookmarks, links, the pinned homepage) is validated through [`src/shared/url.js`](src/shared/url.js) before it's loaded — only `http`/`https` ever reach `loadURL`
+* `window.open()`/target=\_blank links are opened as a new tab rather than an unrestricted popup window
+* Saved passwords: see [Password Manager](#password-manager) above for what "encrypted" means before vs. after you set a master password
+* Translation: see [Translator](#translator) above — page text (or a selection) is sent to Google's public translate endpoint over HTTPS; no credentials or local data accompany it
 
 ---
 
