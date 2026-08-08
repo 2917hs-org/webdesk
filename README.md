@@ -34,6 +34,7 @@ WebDesk uses Electron's Chromium engine to provide a dedicated application windo
 * A password manager with autofill suggestions on login forms — see [Password Manager](#password-manager) below for how it's protected
 * Light / Dark / Follow System appearance, matching macOS's own setting
 * Configurable search engine for anything typed into the address bar that isn't a URL
+* A built-in translator — full-page translate from a toolbar popover, plus a "Translate" selection popup from the right-click menu — see [Translator](#translator) below
 
 ---
 
@@ -45,6 +46,18 @@ WebDesk can save logins typed into pages it's pinned to and offer them back as a
 * **Master password set:** entries are re-encrypted under a key derived from your password, which is never stored. Without it, the entries on disk cannot be decrypted.
 
 Set a master password from the Password Manager (toolbar → Passwords…) whenever you want real protection rather than the unprotected default.
+
+---
+
+## Translator
+
+WebDesk can translate pages in place, without leaving the site.
+
+* **Full-page translate** — click the toolbar's translate icon to open a popover with From/To language dropdowns. Translating walks the active tab's text nodes directly (via `executeJavaScript`), so links, layout, and formatting survive.
+* **"Always translate" rule** — check "Always translate X to Y" in the popover to persist that language pair; future pages detected as language X auto-translate to Y without asking again.
+* **Selection translate** — select text on a page, right-click, and choose "Translate" to get a small popup with just that selection's translation, next to the selection. It closes on the next click or keystroke.
+
+Translation is done via the free, unofficial `translate.googleapis.com` endpoint (the same one behind translate.google.com's own web UI) — no API key or account required, but also no SLA, so occasional failures are expected and handled per-string rather than aborting the whole page.
 
 ---
 
@@ -157,6 +170,16 @@ webdesk/
     │
     ├── search/
     │   └── searchEngines.js     # Address bar: URL vs. search resolution
+    │
+    ├── translate/
+    │   ├── translateService.js     # Calls the translate.googleapis.com endpoint
+    │   ├── translatePrefs.js       # Persists "always translate X to Y" rules
+    │   ├── translateWindow.js      # The toolbar popover (From/To pickers)
+    │   ├── translatePreload.js
+    │   ├── pageTranslator.js       # Walks a tab's text nodes and swaps in translations
+    │   ├── selectionPopup.js       # The right-click "Translate" popup
+    │   ├── selectionPreload.js
+    │   └── languages.js            # Supported language list
     │
     ├── theme/
     │   └── themeManager.js
@@ -299,6 +322,7 @@ Every website WebDesk loads is treated as untrusted content. Concretely:
 * All navigation (address bar, bookmarks, links, the pinned homepage) is validated through [`src/shared/url.js`](src/shared/url.js) before it's loaded — only `http`/`https` ever reach `loadURL`
 * `window.open()`/target=\_blank links are opened as a new tab rather than an unrestricted popup window
 * Saved passwords: see [Password Manager](#password-manager) above for what "encrypted" means before vs. after you set a master password
+* Translation: see [Translator](#translator) above — page text (or a selection) is sent to Google's public translate endpoint over HTTPS; no credentials or local data accompany it
 
 ---
 
