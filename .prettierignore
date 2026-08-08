@@ -1,0 +1,7 @@
+node_modules
+dist
+release
+out
+package-lock.json
+WebDesk.iconset
+assets

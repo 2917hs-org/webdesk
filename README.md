@@ -2,6 +2,8 @@
 
 A lightweight macOS desktop application that turns any website into a standalone desktop experience.
 
+By [Hasan Siddiqui](mailto:hasan190889@gmail.com).
+
 WebDesk uses Electron's Chromium engine to provide a dedicated application window for a configured website. It behaves like a separate desktop application while maintaining its own browser session, cookies, and local storage.
 
 ---
@@ -23,6 +25,7 @@ WebDesk uses Electron's Chromium engine to provide a dedicated application windo
 * Back / forward navigation
 * Page refresh support
 * Tabs, with drag-to-reorder and `⌘T` / `⌘W` / `⌘1`–`⌘9` / `⌃Tab` shortcuts
+* Optional tab grouping by site
 * Links that ask for a new window open in a new tab instead
 * File downloads, saved straight to the system Downloads folder with a toolbar panel for progress, pause/resume/cancel, retry, and history
 * A "New Window" icon (`⌘N`) for opening a second, fully independent WebDesk window that shares bookmarks, saved passwords, and download history with the first
@@ -119,27 +122,31 @@ WebDesk
 ```
 webdesk/
 
-├── main.js
-├── preload.js
+├── main.js                     # App entry point — startup only
+├── preload.js                  # contextBridge API for the main toolbar window
 ├── package.json
 ├── package-lock.json
 │
 ├── assets/
 │   └── icon.icns
 │
+├── tests/                      # node:test unit tests
+│
 └── src/
     │
-    ├── browser/
-    │   ├── browserManager.js
-    │   └── sessionManager.js
-    │
     ├── window/
-    │   ├── windowManager.js
-    │   └── setupWindow.js
+    │   └── windowManager.js    # Creates the main BrowserWindow
+    │
+    ├── browser/
+    │   ├── browserManager.js   # Tabs, navigation, IPC — the core of the app
+    │   └── menuIcons.js        # Icons for native context menus
+    │
+    ├── tabs/
+    │   └── tabManager.js       # Per-window tab strip (one BrowserView per tab)
     │
     ├── onboarding/
     │   ├── setup.html
-    │   └── setup.js
+    │   └── setupWindow.js      # First-run / "change homepage" window
     │
     ├── bookmarks/
     │   └── bookmarkStore.js
@@ -249,6 +256,17 @@ https://leetcode.com
 
 ---
 
+## Tests, Linting, and Formatting
+
+```bash
+npm test           # runs tests/*.test.js with Node's built-in test runner
+npm run lint        # ESLint (flat config, eslint.config.js)
+npm run format:check # Prettier, check only — does not rewrite files
+npm run format       # Prettier, writes changes
+```
+
+---
+
 # Build macOS Application
 
 Create a production build:
@@ -267,6 +285,12 @@ dist/
 ```
 
 The generated application can be installed like a normal macOS application.
+
+**Code signing and notarization are not yet configured.** `hardenedRuntime` is on and electron-builder's default entitlements (which keytar's native module needs) are applied automatically, but without a Developer ID Application certificate the build above produces an **unsigned** app — `npm run build` will skip signing and print a warning rather than fail. Before distributing outside your own machine:
+
+1. Get a Developer ID Application certificate from an Apple Developer account and have it available to `electron-builder` (see [electron.build/code-signing](https://electron.build/code-signing)).
+2. Set `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` (or an App Store Connect API key), and `APPLE_TEAM_ID` as environment variables — electron-builder notarizes automatically when these are present and a valid identity is found.
+3. Re-run `npm run build`, then verify with `spctl -a -vv dist/mac-arm64/WebDesk.app` on a clean machine.
 
 ---
 
@@ -291,7 +315,7 @@ The data is isolated from Google Chrome.
 
 # Security
 
-WebDesk follows Electron security recommendations:
+Every website WebDesk loads is treated as untrusted content. Concretely:
 
 * `contextIsolation` enabled, `nodeIntegration` disabled, `sandbox` enabled — on every window, with no exceptions
 * Minimal, named preload API exposure — no generic `send`/`invoke` passthrough
@@ -348,4 +372,6 @@ The goal is not to build a full browser, but a focused desktop container for web
 
 # License
 
-MIT License
+Apache License 2.0 — see [LICENSE](LICENSE) for the full text.
+
+Copyright 2026 Hasan Siddiqui

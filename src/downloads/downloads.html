@@ -1,0 +1,543 @@
+<!doctype html>
+
+<html>
+    <head>
+        <style>
+            :root {
+                --bg: rgba(246, 246, 246, 0.86);
+
+                --text-primary: #1d1d1f;
+
+                --text-secondary: #6e6e73;
+
+                --separator: rgba(0, 0, 0, 0.1);
+
+                --hover: rgba(0, 0, 0, 0.06);
+
+                --active: rgba(0, 0, 0, 0.12);
+
+                --accent: #007aff;
+
+                --danger: #ff3b30;
+
+                --field-border: rgba(0, 0, 0, 0.15);
+
+                --track-bg: rgba(0, 0, 0, 0.1);
+            }
+
+            @media (prefers-color-scheme: dark) {
+                :root {
+                    --bg: rgba(36, 36, 38, 0.86);
+
+                    --text-primary: #f5f5f7;
+
+                    --text-secondary: #98989d;
+
+                    --separator: rgba(255, 255, 255, 0.12);
+
+                    --hover: rgba(255, 255, 255, 0.09);
+
+                    --active: rgba(255, 255, 255, 0.16);
+
+                    --accent: #0a84ff;
+
+                    --danger: #ff453a;
+
+                    --field-border: rgba(255, 255, 255, 0.16);
+
+                    --track-bg: rgba(255, 255, 255, 0.14);
+                }
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            html,
+            body {
+                margin: 0;
+
+                height: 100%;
+
+                overflow: hidden;
+            }
+
+            body {
+                display: flex;
+
+                flex-direction: column;
+
+                background: var(--bg);
+
+                color: var(--text-primary);
+
+                font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+
+                -webkit-font-smoothing: antialiased;
+
+                user-select: none;
+
+                border-radius: 10px;
+            }
+
+            svg {
+                display: block;
+
+                flex: none;
+            }
+
+            header {
+                flex: none;
+
+                display: flex;
+
+                align-items: center;
+
+                justify-content: space-between;
+
+                padding: 10px 12px;
+
+                border-bottom: 1px solid var(--separator);
+
+                -webkit-app-region: drag;
+            }
+
+            header span {
+                font-size: 12.5px;
+
+                font-weight: 600;
+            }
+
+            #clear {
+                -webkit-app-region: no-drag;
+
+                border: none;
+
+                background: transparent;
+
+                color: var(--text-secondary);
+
+                font-size: 11px;
+
+                padding: 3px 7px;
+
+                border-radius: 5px;
+
+                cursor: pointer;
+            }
+
+            #clear:hover {
+                background: var(--hover);
+
+                color: var(--text-primary);
+            }
+
+            #list {
+                flex: 1;
+
+                overflow-y: auto;
+
+                padding: 4px;
+            }
+
+            #empty {
+                display: none;
+
+                padding: 32px 12px;
+
+                text-align: center;
+
+                font-size: 12px;
+
+                color: var(--text-secondary);
+            }
+
+            body.empty #empty {
+                display: block;
+            }
+
+            body.empty #list {
+                display: none;
+            }
+
+            .row {
+                display: flex;
+
+                flex-direction: column;
+
+                gap: 4px;
+
+                padding: 8px;
+
+                border-radius: 8px;
+            }
+
+            .row:hover {
+                background: var(--hover);
+            }
+
+            .row-main {
+                display: flex;
+
+                align-items: center;
+
+                gap: 8px;
+            }
+
+            .row-icon {
+                flex: none;
+
+                width: 28px;
+
+                height: 28px;
+
+                border-radius: 6px;
+
+                display: flex;
+
+                align-items: center;
+
+                justify-content: center;
+
+                background: var(--hover);
+
+                color: var(--text-secondary);
+            }
+
+            .row-icon.done {
+                color: var(--accent);
+            }
+
+            .row-icon.failed {
+                color: var(--danger);
+            }
+
+            .row-info {
+                flex: 1;
+
+                min-width: 0;
+            }
+
+            .row-name {
+                font-size: 12.5px;
+
+                color: var(--text-primary);
+
+                white-space: nowrap;
+
+                overflow: hidden;
+
+                text-overflow: ellipsis;
+            }
+
+            .row-meta {
+                font-size: 11px;
+
+                color: var(--text-secondary);
+            }
+
+            .row-meta.failed {
+                color: var(--danger);
+            }
+
+            .row-actions {
+                flex: none;
+
+                display: flex;
+
+                gap: 2px;
+            }
+
+            .row-actions button {
+                width: 24px;
+
+                height: 24px;
+
+                margin: 0;
+
+                border: none;
+
+                border-radius: 5px;
+
+                background: transparent;
+
+                color: var(--text-secondary);
+
+                display: flex;
+
+                align-items: center;
+
+                justify-content: center;
+
+                cursor: pointer;
+            }
+
+            .row-actions button:hover {
+                background: var(--active);
+
+                color: var(--text-primary);
+            }
+
+            .progress-track {
+                height: 3px;
+
+                border-radius: 2px;
+
+                background: var(--track-bg);
+
+                overflow: hidden;
+            }
+
+            .progress-fill {
+                height: 100%;
+
+                background: var(--accent);
+
+                border-radius: 2px;
+
+                transition: width 0.15s ease;
+            }
+        </style>
+    </head>
+
+    <body class="empty">
+        <header>
+            <span>Downloads</span>
+
+            <button id="clear" type="button">Clear all</button>
+        </header>
+
+        <div id="list"></div>
+
+        <div id="empty">No downloads yet</div>
+
+        <script>
+            const listEl = document.getElementById('list');
+
+            const clearButton = document.getElementById('clear');
+
+            /*
+                Small inline icon set, matching the toolbar's own —
+                nothing here depends on an external icon font
+            */
+
+            function icon(paths) {
+                return (
+                    '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
+                    paths +
+                    '</svg>'
+                );
+            }
+
+            const ICONS = {
+                file: icon('<path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/>'),
+
+                cancel: icon('<path d="M4 4l8 8M12 4l-8 8"/>'),
+
+                pause: icon('<path d="M5.5 3.5v9M10.5 3.5v9"/>'),
+
+                resume: icon('<path d="M5 3.3v9.4l7-4.7Z" fill="currentColor" stroke="none"/>'),
+
+                folder: icon('<path d="M2 4.5h4l1.4 1.6H14V12H2Z"/>'),
+
+                remove: icon('<path d="M4 4l8 8M12 4l-8 8"/>'),
+
+                retry: icon('<path d="M13 8A5 5 0 1 1 11.3 4.2"/><path d="M13 3.2v3.6H9.4"/>')
+            };
+
+            function formatBytes(bytes) {
+                if (!Number.isFinite(bytes) || bytes < 0) return '';
+
+                if (bytes < 1024) return bytes + ' B';
+
+                const units = ['KB', 'MB', 'GB'];
+
+                let value = bytes / 1024;
+
+                let unitIndex = 0;
+
+                while (value >= 1024 && unitIndex < units.length - 1) {
+                    value /= 1024;
+
+                    unitIndex += 1;
+                }
+
+                return value.toFixed(value < 10 ? 1 : 0) + ' ' + units[unitIndex];
+            }
+
+            function metaLine(download) {
+                if (download.state === 'progressing' || download.state === 'paused') {
+                    const received = formatBytes(download.receivedBytes);
+
+                    const total = download.totalBytes > 0 ? formatBytes(download.totalBytes) : null;
+
+                    const prefix = download.state === 'paused' ? 'Paused · ' : '';
+
+                    return prefix + received + (total ? ' of ' + total : '');
+                }
+
+                if (download.state === 'cancelled') return 'Cancelled';
+
+                if (download.state === 'interrupted') return 'Failed';
+
+                return formatBytes(download.totalBytes || download.receivedBytes);
+            }
+
+            function actionButton(title, iconHtml, onClick) {
+                const button = document.createElement('button');
+
+                button.type = 'button';
+
+                button.title = title;
+
+                button.innerHTML = iconHtml;
+
+                button.addEventListener('click', onClick);
+
+                return button;
+            }
+
+            function buildRow(download) {
+                const row = document.createElement('div');
+
+                row.className = 'row';
+
+                const main = document.createElement('div');
+
+                main.className = 'row-main';
+
+                const iconWrap = document.createElement('div');
+
+                iconWrap.className =
+                    'row-icon' +
+                    (download.state === 'completed' ? ' done' : '') +
+                    (download.state === 'interrupted' ? ' failed' : '');
+
+                iconWrap.innerHTML = ICONS.file;
+
+                const info = document.createElement('div');
+
+                info.className = 'row-info';
+
+                const name = document.createElement('div');
+
+                name.className = 'row-name';
+
+                name.textContent = download.filename || 'Download';
+
+                name.title = download.filename || '';
+
+                const meta = document.createElement('div');
+
+                meta.className = 'row-meta' + (download.state === 'interrupted' ? ' failed' : '');
+
+                meta.textContent = metaLine(download);
+
+                info.appendChild(name);
+
+                info.appendChild(meta);
+
+                const actions = document.createElement('div');
+
+                actions.className = 'row-actions';
+
+                const active = download.state === 'progressing' || download.state === 'paused';
+
+                if (active) {
+                    if (download.state === 'paused') {
+                        actions.appendChild(
+                            actionButton('Resume', ICONS.resume, () => browserAPI.resumeDownload(download.id))
+                        );
+                    } else {
+                        actions.appendChild(
+                            actionButton('Pause', ICONS.pause, () => browserAPI.pauseDownload(download.id))
+                        );
+                    }
+
+                    actions.appendChild(
+                        actionButton('Cancel', ICONS.cancel, () => browserAPI.cancelDownload(download.id))
+                    );
+                } else {
+                    if (download.state === 'completed') {
+                        actions.appendChild(
+                            actionButton('Show in Finder', ICONS.folder, () =>
+                                browserAPI.showDownloadInFolder(download.id)
+                            )
+                        );
+                    }
+
+                    if (download.state === 'interrupted') {
+                        actions.appendChild(
+                            actionButton('Retry', ICONS.retry, () => browserAPI.retryDownload(download.id))
+                        );
+                    }
+
+                    actions.appendChild(
+                        actionButton('Remove from List', ICONS.remove, () => browserAPI.removeDownload(download.id))
+                    );
+                }
+
+                main.appendChild(iconWrap);
+
+                main.appendChild(info);
+
+                main.appendChild(actions);
+
+                row.appendChild(main);
+
+                if (active) {
+                    const track = document.createElement('div');
+
+                    track.className = 'progress-track';
+
+                    const fill = document.createElement('div');
+
+                    fill.className = 'progress-fill';
+
+                    const percent =
+                        download.totalBytes > 0
+                            ? Math.min(100, (download.receivedBytes / download.totalBytes) * 100)
+                            : 0;
+
+                    fill.style.width = percent + '%';
+
+                    track.appendChild(fill);
+
+                    row.appendChild(track);
+                }
+
+                if (download.state === 'completed') {
+                    row.style.cursor = 'pointer';
+
+                    row.addEventListener('dblclick', () => browserAPI.openDownload(download.id));
+                }
+
+                return row;
+            }
+
+            function render(downloads) {
+                const items = Array.isArray(downloads) ? downloads : [];
+
+                document.body.classList.toggle('empty', items.length === 0);
+
+                listEl.innerHTML = '';
+
+                items.forEach((download) => listEl.appendChild(buildRow(download)));
+            }
+
+            browserAPI.getDownloads().then(render);
+
+            browserAPI.onDownloadState(render);
+
+            clearButton.addEventListener('click', () => {
+                browserAPI.clearDownloads().then(render);
+            });
+
+            window.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') {
+                    window.close();
+                }
+            });
+        </script>
+    </body>
+</html>

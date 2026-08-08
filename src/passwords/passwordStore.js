@@ -2,6 +2,15 @@ const crypto = require('crypto');
 
 const store = require('../storage/settingsStore');
 
+/*
+    This vault is the Password Manager window's store — listing,
+    editing, and the master-password lock all live here. Autofill does
+    NOT read from this file; it reads from the OS Keychain via
+    credentialStore.js instead, on purpose. See the comment at the top
+    of credentialStore.js for why the two are kept separate rather than
+    merged into one.
+*/
+
 const VAULT_KEY = 'passwordVault';
 const EXCLUDED_ORIGINS_KEY = 'passwordExcludedOrigins';
 
@@ -15,12 +24,23 @@ const SALT_LENGTH = 32;
 
 const SCRYPT_OPTIONS = { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 
-const MIN_MASTER_LENGTH = 8;
+/*
+    A master password is optional. Until the user chooses one, the
+    vault is still a real vault — encrypted the same way, on disk in
+    the same shape — just under a key derived from this fixed string
+    instead of anything secret, so it never has to ask for anything to
+    read what's in it. Choosing a master password later re-encrypts
+    everything under a key nobody but the user has.
+*/
+
+const DEFAULT_KEY_MATERIAL = 'webdesk-unprotected-vault-v1';
 
 /*
-    The derived key lives only in memory. Once the vault is locked,
-    nothing in the renderer can read stored passwords until it is
-    unlocked again with the master password.
+    The derived key lives only in memory. For a protected vault, once
+    it is locked, nothing in the renderer can read stored passwords
+    until it is unlocked again with the master password. For an
+    unprotected one, ensureAccessible() below re-derives it on demand,
+    so it is never meaningfully "locked" at all.
 */
 
 let derivedKey = null;
@@ -47,6 +67,54 @@ function getVault() {
 
 function saveVault(vault) {
     store.set(VAULT_KEY, vault);
+}
+
+/*
+    Missing the field entirely means a vault saved before this feature
+    existed — those were only ever created by choosing a real master
+    password, so they stay protected rather than silently opening up
+*/
+
+function isProtected(vault) {
+    return vault ? vault.protected !== false : false;
+}
+
+function createDefaultVault() {
+    const salt = crypto.randomBytes(SALT_LENGTH);
+
+    const key = deriveKey(DEFAULT_KEY_MATERIAL, salt);
+
+    derivedKey = key;
+
+    saveVault({
+        salt: salt.toString('base64'),
+        verifier: key.toString('base64'),
+        protected: false,
+        entries: []
+    });
+}
+
+/*
+    Called from every read/write path below, so the vault is always
+    there and, unless the user has chosen to protect it, always
+    readable — no setup step and no unlock prompt required for the
+    common case of not caring about a master password at all
+*/
+
+function ensureAccessible() {
+    const vault = getVault();
+
+    if (!vault) {
+        createDefaultVault();
+
+        return;
+    }
+
+    if (!isProtected(vault) && !derivedKey) {
+        const salt = Buffer.from(vault.salt, 'base64');
+
+        derivedKey = deriveKey(DEFAULT_KEY_MATERIAL, salt);
+    }
 }
 
 function getExcludedOrigins() {
@@ -141,20 +209,36 @@ function toUnlockedEntry(entry) {
 }
 
 function isVaultSetup() {
+    ensureAccessible();
+
     return getVault() !== null;
 }
 
+function isVaultProtected() {
+    ensureAccessible();
+
+    return isProtected(getVault());
+}
+
 function isUnlocked() {
+    ensureAccessible();
+
     return derivedKey !== null;
 }
 
 function validateMasterPassword(masterPassword) {
     const password = String(masterPassword || '');
 
-    if (password.length < MIN_MASTER_LENGTH) {
+    /*
+        No length or complexity requirement — whatever the user chooses
+        is theirs to choose. Only guards against an accidentally blank
+        submission, which isn't really a password at all.
+    */
+
+    if (!password) {
         return {
             ok: false,
-            error: `Master password must be at least ${MIN_MASTER_LENGTH} characters`
+            error: 'Enter a master password'
         };
     }
 
@@ -172,25 +256,112 @@ function verifyMasterPassword(masterPassword) {
     return key.toString('base64') === vault.verifier;
 }
 
+/*
+    Doubles as both "protect this vault for the first time" and "change
+    the existing master password" — either way the result is the same:
+    every entry re-encrypted under a freshly derived key. The only
+    difference is where the *old* key comes from: the fixed default
+    material if nothing was chosen yet, or the currently unlocked
+    custom key if something already was.
+*/
+
 function setupVault(masterPassword) {
     const validation = validateMasterPassword(masterPassword);
 
     if (!validation.ok) return validation;
 
-    if (isVaultSetup()) {
-        return { ok: false, error: 'A password vault already exists' };
+    ensureAccessible();
+
+    const vault = getVault();
+
+    if (isProtected(vault) && !derivedKey) {
+        return { ok: false, error: 'Unlock the vault before changing the master password' };
     }
 
-    const salt = crypto.randomBytes(SALT_LENGTH);
+    const oldKey = derivedKey;
 
-    const key = deriveKey(masterPassword, salt);
+    const newSalt = crypto.randomBytes(SALT_LENGTH);
 
-    derivedKey = key;
+    const newKey = deriveKey(masterPassword, newSalt);
+
+    const entries = vault.entries.map((entry) => {
+        if (!entry.passwordEnc || !oldKey) return entry;
+
+        try {
+            const plain = decrypt(entry.passwordEnc, oldKey);
+
+            return { ...entry, passwordEnc: encrypt(plain, newKey) };
+        } catch {
+            /*
+                Left as-is rather than dropped — an entry that fails to
+                decrypt here is no worse off than it already was
+            */
+
+            return entry;
+        }
+    });
+
+    derivedKey = newKey;
 
     saveVault({
-        salt: salt.toString('base64'),
-        verifier: key.toString('base64'),
-        entries: []
+        salt: newSalt.toString('base64'),
+        verifier: newKey.toString('base64'),
+        protected: true,
+        entries
+    });
+
+    return { ok: true };
+}
+
+/*
+    Re-encrypts every entry under the same fixed key an unprotected
+    vault always uses, then drops the chosen password entirely — the
+    reverse of setupVault. Re-derives from the given password rather
+    than trusting the in-memory derivedKey, so this can't be done
+    without proving the current password even from an already-unlocked
+    window left open.
+*/
+
+function removeMasterPassword(currentPassword) {
+    ensureAccessible();
+
+    const vault = getVault();
+
+    if (!isProtected(vault)) {
+        return { ok: false, error: 'No master password is set' };
+    }
+
+    const oldSalt = Buffer.from(vault.salt, 'base64');
+
+    const oldKey = deriveKey(currentPassword, oldSalt);
+
+    if (oldKey.toString('base64') !== vault.verifier) {
+        return { ok: false, error: 'Incorrect master password' };
+    }
+
+    const newSalt = crypto.randomBytes(SALT_LENGTH);
+
+    const newKey = deriveKey(DEFAULT_KEY_MATERIAL, newSalt);
+
+    const entries = vault.entries.map((entry) => {
+        if (!entry.passwordEnc) return entry;
+
+        try {
+            const plain = decrypt(entry.passwordEnc, oldKey);
+
+            return { ...entry, passwordEnc: encrypt(plain, newKey) };
+        } catch {
+            return entry;
+        }
+    });
+
+    derivedKey = newKey;
+
+    saveVault({
+        salt: newSalt.toString('base64'),
+        verifier: newKey.toString('base64'),
+        protected: false,
+        entries
     });
 
     return { ok: true };
@@ -223,6 +394,8 @@ function lockVault() {
 }
 
 function requireUnlocked() {
+    ensureAccessible();
+
     if (!derivedKey) {
         return { ok: false, error: 'Vault is locked' };
     }
@@ -231,6 +404,8 @@ function requireUnlocked() {
 }
 
 function getEntries(includePasswords = false) {
+    ensureAccessible();
+
     const vault = getVault();
 
     if (!vault) return [];
@@ -467,17 +642,21 @@ function getEntryPassword(id) {
 }
 
 function passwordState() {
+    ensureAccessible();
+
     return {
-        setup: isVaultSetup(),
+        protected: isVaultProtected(),
         unlocked: isUnlocked(),
-        entries: getEntries(isUnlocked())
+        entries: getEntries(true)
     };
 }
 
 module.exports = {
     isVaultSetup,
+    isVaultProtected,
     isUnlocked,
     setupVault,
+    removeMasterPassword,
     unlockVault,
     lockVault,
     getEntries,
@@ -490,7 +669,6 @@ module.exports = {
     deleteEntry,
     getEntryPassword,
     passwordState,
-    MIN_MASTER_LENGTH,
     shouldStoreCapturedLogin,
     setExcludedOrigin,
     verifyMasterPassword

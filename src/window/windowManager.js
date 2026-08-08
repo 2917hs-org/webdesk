@@ -43,6 +43,24 @@ function createMainWindow() {
 
         show: false,
 
+        /*
+            The native title bar is dropped in favour of merging the
+            traffic lights into our own tab row, the way Safari and Arc
+            do, rather than stacking a second row of chrome underneath
+            a full OS title bar
+        */
+
+        titleBarStyle: 'hiddenInset',
+
+        trafficLightPosition: { x: 12, y: 12 },
+
+        /*
+            Translucent header material so the merged title/tab row
+            reads as native macOS chrome instead of a flat panel
+        */
+
+        vibrancy: 'header',
+
         webPreferences: {
             preload: path.join(__dirname, '../../preload.js'),
 

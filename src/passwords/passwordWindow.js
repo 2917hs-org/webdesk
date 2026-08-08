@@ -2,8 +2,6 @@ const { BrowserWindow } = require('electron');
 
 const path = require('path');
 
-const passwordStore = require('./passwordStore');
-
 /*
     Opened from the toolbar to manage saved passwords. Only one may be
     open at a time, matching how the setup window is handled.
@@ -27,11 +25,11 @@ function createPasswordWindow(options) {
     const hasParent = parentWindow && !parentWindow.isDestroyed();
 
     passwordWindow = new BrowserWindow({
-        width: 480,
+        width: 600,
 
         height: 560,
 
-        minWidth: 400,
+        minWidth: 520,
 
         minHeight: 420,
 
@@ -50,8 +48,15 @@ function createPasswordWindow(options) {
 
         modal: hasParent,
 
+        /*
+            Translucent panel material, matching a native macOS dialog
+            rather than a flat opaque one
+        */
+
+        vibrancy: 'popover',
+
         webPreferences: {
-            preload: path.join(__dirname, '../../preload.js'),
+            preload: path.join(__dirname, 'passwordManagerPreload.js'),
 
             contextIsolation: true,
 

@@ -4,13 +4,31 @@ const { ipcRenderer } = require('electron');
     Runs inside each tab. Injects a small script into the page so login
     forms can be watched from the page's own JavaScript context, then
     forwards captured credentials to the main process.
+
+    The injected script and this preload talk to each other over
+    window.postMessage — the only channel that reaches across the
+    isolated-world boundary between them. That also means any other
+    script sharing the page (a third-party tag, or an XSS payload) could
+    add its own 'message' listener and see the same traffic. Every
+    channel name below is namespaced with a random, per-page-load token
+    (buildCaptureScript's argument) that isn't reachable from outside
+    this closure, so a listener has to already know it rather than just
+    matching a fixed, guessable string like "webdesk-login-capture".
+    It's a narrowing, not a guarantee — a script that monkey-patches
+    postMessage/addEventListener before this one runs isn't stopped by
+    it — but it closes off passive, no-effort interception.
 */
 
-const CAPTURE_SCRIPT = `
+function buildCaptureScript(token) {
+    const channelPrefix = JSON.stringify(token + ':');
+
+    return `
 (function () {
     if (window.__webdeskLoginCaptureInstalled) return;
 
     window.__webdeskLoginCaptureInstalled = true;
+
+    const CHANNEL_PREFIX = ${channelPrefix};
 
     let lastCaptureAt = 0;
 
@@ -73,7 +91,7 @@ const CAPTURE_SCRIPT = `
             .filter(Boolean);
 
         return {
-            channel: 'webdesk-login-capture',
+            channel: CHANNEL_PREFIX + 'login-capture',
             username,
             password: passwordInput.value,
             url: location.href,
@@ -90,7 +108,9 @@ const CAPTURE_SCRIPT = `
 
         const now = Date.now();
 
-        if (now - lastCaptureAt < 2000) return;
+        if (now - lastCaptureAt < 2000) {
+            return;
+        }
 
         lastCaptureAt = now;
 
@@ -214,7 +234,7 @@ const CAPTURE_SCRIPT = `
     }
 
     function selectAccount(username) {
-        window.postMessage({ channel: 'webdesk-autofill-select', username: username }, '*');
+        window.postMessage({ channel: CHANNEL_PREFIX + 'autofill-select', username: username }, '*');
 
         removeDropdown();
     }
@@ -288,7 +308,7 @@ const CAPTURE_SCRIPT = `
                 event.stopPropagation();
 
                 window.postMessage(
-                    { channel: 'webdesk-autofill-hide', username: account.username },
+                    { channel: CHANNEL_PREFIX + 'autofill-hide', username: account.username },
                     '*'
                 );
 
@@ -338,7 +358,10 @@ const CAPTURE_SCRIPT = `
 
         pendingField = field;
 
-        window.postMessage({ channel: 'webdesk-autofill-suggest-request', requestId: requestId }, '*');
+        window.postMessage(
+            { channel: CHANNEL_PREFIX + 'autofill-suggest-request', requestId: requestId },
+            '*'
+        );
     }
 
     document.addEventListener(
@@ -374,7 +397,7 @@ const CAPTURE_SCRIPT = `
 
         const data = event.data;
 
-        if (!data || data.channel !== 'webdesk-autofill-suggest-response') return;
+        if (!data || data.channel !== CHANNEL_PREFIX + 'autofill-suggest-response') return;
 
         if (data.requestId !== pendingRequestId) return;
 
@@ -384,15 +407,34 @@ const CAPTURE_SCRIPT = `
     });
 })();
 `;
+}
+
+function randomToken() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+        return window.crypto.randomUUID();
+    }
+
+    /*
+        Only reached if the Web Crypto API is ever unavailable — still
+        unguessable enough for its purpose here (narrowing who can make
+        sense of the postMessage traffic, not a cryptographic secret)
+    */
+
+    return 'webdesk-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+}
+
+let currentToken = null;
 
 function injectCaptureScript() {
     if (window.__webdeskLoginCaptureInjected) return;
 
     window.__webdeskLoginCaptureInjected = true;
 
+    currentToken = randomToken();
+
     const script = document.createElement('script');
 
-    script.textContent = CAPTURE_SCRIPT;
+    script.textContent = buildCaptureScript(currentToken);
 
     (document.head || document.documentElement).appendChild(script);
 
@@ -402,11 +444,19 @@ function injectCaptureScript() {
 window.addEventListener('message', (event) => {
     if (event.source !== window) return;
 
+    if (!currentToken) return;
+
     const data = event.data;
 
-    if (!data) return;
+    if (!data || typeof data.channel !== 'string') return;
 
-    if (data.channel === 'webdesk-login-capture') {
+    const prefix = currentToken + ':';
+
+    if (!data.channel.startsWith(prefix)) return;
+
+    const channel = data.channel.slice(prefix.length);
+
+    if (channel === 'login-capture') {
         ipcRenderer.send('login-detected', {
             username: data.username,
             password: data.password,
@@ -426,13 +476,13 @@ window.addEventListener('message', (event) => {
         this tab's own webContents, not from anything postMessage carries
     */
 
-    if (data.channel === 'webdesk-autofill-suggest-request') {
+    if (channel === 'autofill-suggest-request') {
         ipcRenderer
             .invoke('autofill-lookup')
             .then((accounts) => {
                 window.postMessage(
                     {
-                        channel: 'webdesk-autofill-suggest-response',
+                        channel: prefix + 'autofill-suggest-response',
                         requestId: data.requestId,
                         accounts: accounts || []
                     },
@@ -444,13 +494,13 @@ window.addEventListener('message', (event) => {
         return;
     }
 
-    if (data.channel === 'webdesk-autofill-select') {
+    if (channel === 'autofill-select') {
         ipcRenderer.send('autofill-fill', { username: data.username });
 
         return;
     }
 
-    if (data.channel === 'webdesk-autofill-hide') {
+    if (channel === 'autofill-hide') {
         ipcRenderer.send('autofill-hide-suggestion', { username: data.username });
     }
 });

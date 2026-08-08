@@ -1,10 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('browserAPI', {
-    navigate(url) {
-        ipcRenderer.send('navigate', url);
-    },
-
     submitOmnibox(text) {
         ipcRenderer.send('omnibox-submit', text);
     },
@@ -73,10 +69,6 @@ contextBridge.exposeInMainWorld('browserAPI', {
         });
     },
 
-    toggleFocusMode() {
-        return ipcRenderer.invoke('toggle-focus-mode');
-    },
-
     toggleMaximise() {
         return ipcRenderer.invoke('toggle-maximise');
     },
@@ -88,12 +80,6 @@ contextBridge.exposeInMainWorld('browserAPI', {
     onMaximiseChange(callback) {
         ipcRenderer.on('maximise-changed', (_, maximised) => {
             callback(maximised);
-        });
-    },
-
-    onFocusModeChange(callback) {
-        ipcRenderer.on('focus-mode-changed', (_, active) => {
-            callback(active);
         });
     },
 
@@ -111,10 +97,6 @@ contextBridge.exposeInMainWorld('browserAPI', {
         });
     },
 
-    getSetupConfig() {
-        return ipcRenderer.invoke('get-setup-config');
-    },
-
     onURLChange(callback) {
         ipcRenderer.on('url-change', (_, url) => {
             callback(url);
@@ -127,20 +109,12 @@ contextBridge.exposeInMainWorld('browserAPI', {
         });
     },
 
-    saveUrl(url) {
-        ipcRenderer.send('save-url', url);
-    },
-
     getBookmarkState() {
         return ipcRenderer.invoke('get-bookmark-state');
     },
 
     toggleBookmark() {
         return ipcRenderer.invoke('toggle-bookmark');
-    },
-
-    removeBookmark(url) {
-        return ipcRenderer.invoke('remove-bookmark', url);
     },
 
     renameBookmark(url, title) {
@@ -169,9 +143,43 @@ contextBridge.exposeInMainWorld('browserAPI', {
         });
     },
 
+    onTriggerGroupTabsToggle(callback) {
+        ipcRenderer.on('trigger-group-tabs-toggle', () => {
+            callback();
+        });
+    },
+
     onBookmarkRename(callback) {
         ipcRenderer.on('bookmark-rename', (_, url) => {
             callback(url);
+        });
+    },
+
+    openNewWindow() {
+        ipcRenderer.send('new-window');
+    },
+
+    getDownloads() {
+        return ipcRenderer.invoke('get-downloads');
+    },
+
+    onDownloadState(callback) {
+        ipcRenderer.on('download-state', (_, downloads) => {
+            callback(downloads);
+        });
+    },
+
+    toggleDownloadsPanel(anchorRect) {
+        ipcRenderer.send('toggle-downloads-panel', anchorRect);
+    },
+
+    toggleTranslatePanel(anchorRect) {
+        ipcRenderer.send('toggle-translate-panel', anchorRect);
+    },
+
+    onTranslateBadgeState(callback) {
+        ipcRenderer.on('translate-badge-state', (_, state) => {
+            callback(state);
         });
     },
 
@@ -181,44 +189,6 @@ contextBridge.exposeInMainWorld('browserAPI', {
 
     openPasswordManager() {
         ipcRenderer.send('open-password-manager');
-    },
-
-    getPasswordState() {
-        return ipcRenderer.invoke('get-password-state');
-    },
-
-    setupPasswordVault(masterPassword) {
-        return ipcRenderer.invoke('setup-password-vault', masterPassword);
-    },
-
-    unlockPasswordVault(masterPassword) {
-        return ipcRenderer.invoke('unlock-password-vault', masterPassword);
-    },
-
-    lockPasswordVault() {
-        return ipcRenderer.invoke('lock-password-vault');
-    },
-
-    addPassword(entry) {
-        return ipcRenderer.invoke('add-password', entry);
-    },
-
-    updatePassword(id, updates) {
-        return ipcRenderer.invoke('update-password', id, updates);
-    },
-
-    deletePassword(id) {
-        return ipcRenderer.invoke('delete-password', id);
-    },
-
-    copyPassword(id) {
-        return ipcRenderer.invoke('copy-password', id);
-    },
-
-    onPasswordConfig(callback) {
-        ipcRenderer.on('password-config', (_, config) => {
-            callback(config);
-        });
     },
 
     saveCapturedPassword() {
@@ -232,6 +202,20 @@ contextBridge.exposeInMainWorld('browserAPI', {
     onSavePasswordPrompt(callback) {
         ipcRenderer.on('save-password-prompt', (_, prompt) => {
             callback(prompt);
+        });
+    },
+
+    getThemeSource() {
+        return ipcRenderer.invoke('get-theme-source');
+    },
+
+    showThemeMenu() {
+        ipcRenderer.send('show-theme-menu');
+    },
+
+    onThemeChange(callback) {
+        ipcRenderer.on('theme-changed', (_, theme) => {
+            callback(theme);
         });
     }
 });
