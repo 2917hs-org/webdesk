@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <filter id="softShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#1B3A8A" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#softShadow)">
+    <!-- Flat C ring -->
+    <circle cx="256" cy="256" r="180" fill="none" stroke="#2E6FF2" stroke-width="88"
+      stroke-linecap="round"
+      stroke-dasharray="880 1131"
+      stroke-dashoffset="70"
+      transform="rotate(-60 256 256)"
+    />
+
+    <!-- Browser window -->
+    <g>
+      <rect x="171" y="171" width="170" height="170" rx="20" fill="#FFFFFF" stroke="#D7DEEB" stroke-width="2"/>
+      <path d="M171 193 a20 20 0 0 1 20-20 h130 a20 20 0 0 1 20 20 v18 h-170 z" fill="#1E2A4A"/>
+      <circle cx="191" cy="202" r="6" fill="#FF5F57"/>
+      <circle cx="210" cy="202" r="6" fill="#FFBD2E"/>
+      <circle cx="229" cy="202" r="6" fill="#28C840"/>
+
+      <!-- Globe -->
+      <g transform="translate(256,270)" fill="none" stroke="#2E6FF2" stroke-width="7" stroke-linecap="round">
+        <circle r="40" />
+        <ellipse rx="17" ry="40" />
+        <line x1="-40" y1="0" x2="40" y2="0" />
+        <path d="M -35 -20 A 76 76 0 0 0 35 -20" />
+        <path d="M -35 20 A 76 76 0 0 1 35 20" />
+      </g>
+    </g>
+  </g>
+</svg>
