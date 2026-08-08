@@ -174,6 +174,24 @@ function createBrowserView(window) {
 
     menuIcons.rasterize();
 
+    /*
+        The tab created below focuses its own webContents while the
+        window is still hidden (see selectTab() in tabManager.js), but
+        Chromium resets focus once the window actually becomes key —
+        landing, by DOM order, on the toolbar's first button (Back).
+        Re-asserting focus on the active page once the window is
+        actually shown is what keeps launch behaving like every other
+        browser: focus on the page, not on a toolbar button.
+    */
+
+    window.once('show', () => {
+        const view = ctx.tabs.activeView();
+
+        if (view && !view.webContents.isDestroyed()) {
+            view.webContents.focus();
+        }
+    });
+
     const websiteUrl = getWebsiteUrl();
 
     if (!websiteUrl) return;
