@@ -950,6 +950,17 @@
                 opacity: 0.4;
             }
 
+            /*
+                A tab whose renderer has been freed to save memory. Dimmed
+                rather than hidden or badged, so the strip still reads
+                normally at a glance — it only matters once you notice the
+                brief reload the next click on it causes.
+            */
+
+            .tab.suspended:not(.active) {
+                opacity: 0.55;
+            }
+
             .tab-icon {
                 width: 15px;
 
@@ -2705,7 +2716,7 @@
             function createTabChip(tab) {
                 const chip = document.createElement('div');
 
-                chip.className = 'tab' + (tab.active ? ' active' : '');
+                chip.className = 'tab' + (tab.active ? ' active' : '') + (tab.suspended ? ' suspended' : '');
 
                 chip.dataset.tooltip = tabLabel(tab) + (tab.url ? '\n' + tab.url : '');
 

@@ -1,4 +1,4 @@
-const { BrowserView, session } = require('electron');
+const { WebContentsView, session } = require('electron');
 
 const path = require('path');
 
@@ -12,7 +12,7 @@ const { isWebUrl } = require('../shared/url');
 
     Each window gets its own instance (createTabManager()), so a second
     WebDesk window has its own tab strip rather than fighting the first
-    one over which BrowserView is attached where.
+    one over which view is attached where.
 */
 
 /*
@@ -51,12 +51,25 @@ function createTabManager() {
 
     let boundsFor = () => null;
 
+    /*
+        Whichever tab's view is currently a child of the window's
+        contentView. Unlike the old BrowserView API's setBrowserView(),
+        WebContentsView has no built-in "only one at a time" behaviour —
+        the previous child has to be removed explicitly before the next
+        one is added, so this has to be tracked here rather than asked
+        of the window.
+    */
+
+    let attachedView = null;
+
     function init(window, options = {}) {
         hostWindow = window;
 
         tabs = [];
 
         activeId = null;
+
+        attachedView = null;
 
         onViewCreated = typeof options.onViewCreated === 'function' ? options.onViewCreated : () => {};
 
@@ -70,6 +83,8 @@ function createTabManager() {
             tabs = [];
 
             activeId = null;
+
+            attachedView = null;
 
             hostWindow = null;
         });
@@ -94,17 +109,19 @@ function createTabManager() {
     function activeView() {
         const tab = activeTab();
 
-        return tab && !tab.view.webContents.isDestroyed() ? tab.view : null;
+        return tab && tab.view && !tab.view.webContents.isDestroyed() ? tab.view : null;
     }
 
     /*
         Looks a tab up by its own webContents rather than by id, for IPC
         senders (like a tab's preload) that only have that to identify
-        themselves with — and that have no reason to know their own tab id
+        themselves with — and that have no reason to know their own tab id.
+        A suspended tab has no webContents to match against, so it is
+        simply never found this way until it is restored.
     */
 
     function findTabByWebContents(webContents) {
-        return tabs.find((tab) => tab.view.webContents === webContents) || null;
+        return tabs.find((tab) => tab.view && tab.view.webContents === webContents) || null;
     }
 
     function getActiveId() {
@@ -128,7 +145,9 @@ function createTabManager() {
 
             loading: tab.loading,
 
-            active: tab.id === activeId
+            active: tab.id === activeId,
+
+            suspended: tab.suspended
         };
     }
 
@@ -136,10 +155,17 @@ function createTabManager() {
         return tabs.map(describe);
     }
 
-    function createTab(url, options = {}) {
-        if (!isUsable()) return null;
+    /*
+        Builds this tab's view and wires it up — used both the first time
+        a tab is created and again whenever a suspended tab's view has to
+        be rebuilt on reselect. Every per-tab listener browserManager.js
+        attaches inside onViewCreated() is bound to one specific
+        webContents with no way to reattach it elsewhere, so a fresh view
+        always needs a fresh onViewCreated() call, not just new content.
+    */
 
-        const view = new BrowserView({
+    function attachView(tab, url) {
+        const view = new WebContentsView({
             webPreferences: {
                 preload: path.join(__dirname, '../passwords/loginCapturePreload.js'),
 
@@ -153,10 +179,41 @@ function createTabManager() {
             }
         });
 
+        tab.view = view;
+
+        tab.suspended = false;
+
+        /*
+            Wired before the page starts loading, so nothing that happens on
+            the way to the first paint is missed
+        */
+
+        onViewCreated(tab);
+
+        /*
+            A tab that is not the one on screen is never attached, and so
+            would lay itself out against a zero-sized window until the
+            first time it is looked at
+        */
+
+        const bounds = boundsFor();
+
+        if (bounds) {
+            view.setBounds(bounds);
+        }
+
+        if (url && isWebUrl(url)) {
+            view.webContents.loadURL(url);
+        }
+    }
+
+    function createTab(url, options = {}) {
+        if (!isUsable()) return null;
+
         const tab = {
             id: nextId,
 
-            view,
+            view: null,
 
             title: '',
 
@@ -172,7 +229,17 @@ function createTabManager() {
                 searched for in the tab that made it
             */
 
-            pendingOmniboxGuess: null
+            pendingOmniboxGuess: null,
+
+            /*
+                Drives suspension: how long a tab has sat without being the
+                one selected, so a background tab idle past the threshold
+                can have its renderer freed
+            */
+
+            lastActiveAt: Date.now(),
+
+            suspended: false
         };
 
         nextId += 1;
@@ -183,28 +250,7 @@ function createTabManager() {
 
         tabs.splice(at, 0, tab);
 
-        /*
-            Wired before the page starts loading, so nothing that happens on
-            the way to the first paint is missed
-        */
-
-        onViewCreated(tab);
-
-        /*
-            A tab opened behind the current one is never attached, and so
-            would lay itself out against a zero-sized window until the first
-            time it is looked at
-        */
-
-        const bounds = boundsFor();
-
-        if (bounds) {
-            view.setBounds(bounds);
-        }
-
-        if (url && isWebUrl(url)) {
-            view.webContents.loadURL(url);
-        }
+        attachView(tab, url);
 
         if (options.background && activeId !== null) {
             onChange();
@@ -222,7 +268,25 @@ function createTabManager() {
 
         activeId = tab.id;
 
-        hostWindow.setBrowserView(tab.view);
+        tab.lastActiveAt = Date.now();
+
+        /*
+            A suspended tab has no view left to attach — rebuild it now,
+            the same way a brand new tab would be built, loading whatever
+            URL it was last known to be on
+        */
+
+        if (!tab.view) {
+            attachView(tab, tab.url);
+        }
+
+        if (attachedView) {
+            hostWindow.contentView.removeChildView(attachedView);
+        }
+
+        hostWindow.contentView.addChildView(tab.view);
+
+        attachedView = tab.view;
 
         applyBounds();
 
@@ -238,8 +302,12 @@ function createTabManager() {
     }
 
     function destroyView(view) {
-        if (isUsable()) {
-            hostWindow.removeBrowserView(view);
+        if (!view) return;
+
+        if (isUsable() && attachedView === view) {
+            hostWindow.contentView.removeChildView(view);
+
+            attachedView = null;
         }
 
         if (!view.webContents.isDestroyed()) {
@@ -289,10 +357,10 @@ function createTabManager() {
         Explicit teardown for every tab at once, used when the whole
         window is going away (see the 'close' handler in
         browserManager.js) rather than one tab being closed by the
-        user. Only the active tab's BrowserView is ever attached to the
+        user. Only the active tab's view is ever attached to the
         window, so the others need this to be destroyed at all — left
         alone, they would still be alive when the window itself is
-        destroyed.
+        destroyed. Suspended tabs have nothing left to destroy.
     */
 
     function destroyAll() {
@@ -359,7 +427,7 @@ function createTabManager() {
 
     /*
         Only the attached view is on screen, so it is the only one whose
-        bounds can be wrong
+        bounds can be wrong. A suspended tab has no view to size.
     */
 
     function applyBounds() {
@@ -367,9 +435,57 @@ function createTabManager() {
 
         const tab = activeTab();
 
-        if (!bounds || !tab || tab.view.webContents.isDestroyed()) return;
+        if (!bounds || !tab || !tab.view || tab.view.webContents.isDestroyed()) return;
 
         tab.view.setBounds(bounds);
+    }
+
+    /*
+        Frees a background tab's renderer to reclaim its memory, keeping
+        just enough (title/url/favicon) for the toolbar to keep showing
+        it. The active tab is never a candidate — there's nothing to free
+        that isn't on screen — and neither is one that's already asleep.
+    */
+
+    function suspendTab(id) {
+        const tab = findTab(id);
+
+        if (!tab || tab.id === activeId || !tab.view || tab.suspended) return;
+
+        destroyView(tab.view);
+
+        tab.view = null;
+
+        tab.suspended = true;
+
+        tab.loading = false;
+
+        onChange();
+    }
+
+    /*
+        Tabs eligible to be suspended right now: not the active tab,
+        not already asleep, idle longer than idleMs, and not currently
+        playing audio or video — silently killing a background podcast
+        or call would be a worse outcome than the memory it saves.
+    */
+
+    function getSuspendCandidates(idleMs) {
+        const now = Date.now();
+
+        return tabs
+            .filter((tab) => {
+                if (tab.suspended || tab.id === activeId || !tab.view) return false;
+
+                if (now - tab.lastActiveAt < idleMs) return false;
+
+                const contents = tab.view.webContents;
+
+                if (!contents.isDestroyed() && contents.isCurrentlyAudible()) return false;
+
+                return true;
+            })
+            .map((tab) => tab.id);
     }
 
     return {
@@ -387,7 +503,9 @@ function createTabManager() {
         activeView,
         findTabByWebContents,
         getActiveId,
-        getTabs
+        getTabs,
+        suspendTab,
+        getSuspendCandidates
     };
 }
 

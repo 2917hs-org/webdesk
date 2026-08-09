@@ -22,6 +22,8 @@ const { toggleDownloadsWindow, notifyDownloadsWindow } = require('../downloads/d
 
 const tabManagerModule = require('../tabs/tabManager');
 
+const tabSuspender = require('../tabs/tabSuspender');
+
 const themeManager = require('../theme/themeManager');
 
 const menuIcons = require('./menuIcons');
@@ -185,6 +187,14 @@ function createBrowserView(window) {
     ensureAdblockerInitialized();
 
     ensureDownloadsInitialized();
+
+    /*
+        One watcher per window, cleaned up on that window's own 'closed'
+        event (see tabSuspender.js) rather than shared globally — each
+        window's tabs go idle independently of any other window's
+    */
+
+    tabSuspender.startSuspendWatcher(ctx);
 
     /*
         Warmed up now rather than on the first right-click, so that
